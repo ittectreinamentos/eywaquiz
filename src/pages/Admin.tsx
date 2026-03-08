@@ -1,47 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line,
+  PieChart, Pie, Cell, ResponsiveContainer, Area, AreaChart,
 } from "recharts";
 import {
-  Users,
-  TrendingUp,
-  Gift,
-  Star,
-  Clock,
-  ShoppingBag,
-  BarChart3,
-  FileText,
-  ArrowLeft,
+  Users, TrendingUp, Gift, Star, Clock, ShoppingBag, BarChart3,
+  FileText, ArrowLeft, Bell, Check, X, Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 // --- Mock Data ---
 const engagementData = [
@@ -79,20 +59,13 @@ const pieData = [
 ];
 
 const hourlyData = [
-  { hora: "06h", clientes: 5 },
-  { hora: "07h", clientes: 18 },
-  { hora: "08h", clientes: 35 },
-  { hora: "09h", clientes: 28 },
-  { hora: "10h", clientes: 22 },
-  { hora: "11h", clientes: 15 },
-  { hora: "12h", clientes: 30 },
-  { hora: "13h", clientes: 25 },
-  { hora: "14h", clientes: 12 },
-  { hora: "15h", clientes: 18 },
-  { hora: "16h", clientes: 28 },
-  { hora: "17h", clientes: 40 },
-  { hora: "18h", clientes: 35 },
-  { hora: "19h", clientes: 20 },
+  { hora: "06h", clientes: 5 }, { hora: "07h", clientes: 18 },
+  { hora: "08h", clientes: 35 }, { hora: "09h", clientes: 28 },
+  { hora: "10h", clientes: 22 }, { hora: "11h", clientes: 15 },
+  { hora: "12h", clientes: 30 }, { hora: "13h", clientes: 25 },
+  { hora: "14h", clientes: 12 }, { hora: "15h", clientes: 18 },
+  { hora: "16h", clientes: 28 }, { hora: "17h", clientes: 40 },
+  { hora: "18h", clientes: 35 }, { hora: "19h", clientes: 20 },
   { hora: "20h", clientes: 8 },
 ];
 
@@ -110,18 +83,21 @@ const chartConfig = {
   resgates: { label: "Resgates", color: "hsl(150, 50%, 30%)" },
 };
 
+interface PendingRedemption {
+  id: number;
+  clientEmail: string;
+  clientName: string;
+  rewards: string[];
+  totalPoints: number;
+  date: string;
+  status: "pending" | "confirmed" | "rejected";
+  rejectReason?: string;
+}
+
 const MetricCard = ({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  trend,
+  icon: Icon, label, value, sub, trend,
 }: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  sub: string;
-  trend?: string;
+  icon: React.ElementType; label: string; value: string; sub: string; trend?: string;
 }) => (
   <Card className="bg-card border-border">
     <CardContent className="p-4">
@@ -144,7 +120,52 @@ const MetricCard = ({
 
 const Admin = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [pendingRedemptions, setPendingRedemptions] = useState<PendingRedemption[]>([]);
+  const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [processingId, setProcessingId] = useState<number | null>(null);
+
+  // Load pending redemptions from localStorage
+  useEffect(() => {
+    const load = () => {
+      const stored = JSON.parse(localStorage.getItem("eywa_pending_redemptions") || "[]");
+      setPendingRedemptions(stored);
+    };
+    load();
+    const interval = setInterval(load, 3000); // poll every 3s
+    return () => clearInterval(interval);
+  }, []);
+
+  const pendingCount = pendingRedemptions.filter((r) => r.status === "pending").length;
+
+  const handleConfirm = async (id: number) => {
+    setProcessingId(id);
+    await new Promise((r) => setTimeout(r, 1000));
+    const updated = pendingRedemptions.map((r) =>
+      r.id === id ? { ...r, status: "confirmed" as const } : r
+    );
+    setPendingRedemptions(updated);
+    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(updated));
+    setProcessingId(null);
+    toast({ title: "Resgate confirmado!", description: "O cliente foi notificado." });
+  };
+
+  const handleReject = async () => {
+    if (showRejectDialog === null) return;
+    setProcessingId(showRejectDialog);
+    await new Promise((r) => setTimeout(r, 1000));
+    const updated = pendingRedemptions.map((r) =>
+      r.id === showRejectDialog ? { ...r, status: "rejected" as const, rejectReason } : r
+    );
+    setPendingRedemptions(updated);
+    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(updated));
+    setProcessingId(null);
+    setShowRejectDialog(null);
+    setRejectReason("");
+    toast({ title: "Resgate recusado", description: "O cliente foi notificado.", variant: "destructive" });
+  };
 
   return (
     <div className="min-h-screen bg-background bg-gradient-dark">
@@ -165,6 +186,18 @@ const Admin = () => {
               Padaria Pão Dourado • EYWA Analytics
             </p>
           </div>
+          {/* Notification bell */}
+          <button
+            onClick={() => setActiveTab("resgates")}
+            className="relative p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+          >
+            <Bell className="h-4 w-4 text-foreground" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+          </button>
           <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
             <Star className="h-4 w-4 text-primary" />
           </div>
@@ -183,6 +216,18 @@ const Admin = () => {
               Dashboard
             </TabsTrigger>
             <TabsTrigger
+              value="resgates"
+              className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative"
+            >
+              <Gift className="h-3 w-3 mr-1" />
+              Resgates
+              {pendingCount > 0 && (
+                <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
               value="reports"
               className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
@@ -193,44 +238,16 @@ const Admin = () => {
 
           {/* ===== DASHBOARD TAB ===== */}
           <TabsContent value="dashboard" className="mt-4 pb-20 space-y-4">
-            {/* Metric cards */}
             <div className="grid grid-cols-2 gap-3">
-              <MetricCard
-                icon={Users}
-                label="Total Interações"
-                value="510"
-                sub="últimos 7 dias"
-                trend="+18%"
-              />
-              <MetricCard
-                icon={TrendingUp}
-                label="Pontos Distribuídos"
-                value="20.400"
-                sub="últimos 7 dias"
-                trend="+24%"
-              />
-              <MetricCard
-                icon={Gift}
-                label="Resgates Realizados"
-                value="253"
-                sub="últimos 7 dias"
-                trend="+12%"
-              />
-              <MetricCard
-                icon={ShoppingBag}
-                label="Ticket Médio Est."
-                value="R$18,50"
-                sub="aumento de R$3,20"
-                trend="+21%"
-              />
+              <MetricCard icon={Users} label="Total Interações" value="510" sub="últimos 7 dias" trend="+18%" />
+              <MetricCard icon={TrendingUp} label="Pontos Distribuídos" value="20.400" sub="últimos 7 dias" trend="+24%" />
+              <MetricCard icon={Gift} label="Resgates Realizados" value="253" sub="últimos 7 dias" trend="+12%" />
+              <MetricCard icon={ShoppingBag} label="Ticket Médio Est." value="R$18,50" sub="aumento de R$3,20" trend="+21%" />
             </div>
 
-            {/* Engagement chart */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
-                <CardTitle className="text-foreground text-sm font-display">
-                  Engajamento Semanal
-                </CardTitle>
+                <CardTitle className="text-foreground text-sm font-display">Engajamento Semanal</CardTitle>
               </CardHeader>
               <CardContent className="px-2 pb-4">
                 <ChartContainer config={chartConfig} className="h-[200px] w-full">
@@ -245,12 +262,9 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Top products */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
-                <CardTitle className="text-foreground text-sm font-display">
-                  Produtos Mais Resgatados
-                </CardTitle>
+                <CardTitle className="text-foreground text-sm font-display">Produtos Mais Resgatados</CardTitle>
               </CardHeader>
               <CardContent className="px-0 pb-2">
                 <Table>
@@ -270,12 +284,8 @@ const Admin = () => {
                             <span className="text-foreground text-xs">{p.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-foreground text-xs text-center font-bold">
-                          {p.resgates}
-                        </TableCell>
-                        <TableCell className="text-primary text-xs text-right pr-4 font-display">
-                          {p.pontos.toLocaleString()}
-                        </TableCell>
+                        <TableCell className="text-foreground text-xs text-center font-bold">{p.resgates}</TableCell>
+                        <TableCell className="text-primary text-xs text-right pr-4 font-display">{p.pontos.toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -283,26 +293,15 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Pie chart */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
-                <CardTitle className="text-foreground text-sm font-display">
-                  Distribuição de Resgates
-                </CardTitle>
+                <CardTitle className="text-foreground text-sm font-display">Distribuição de Resgates</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 flex items-center">
                 <div className="w-1/2 h-[160px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={35}
-                        outerRadius={65}
-                        dataKey="value"
-                        stroke="none"
-                      >
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} dataKey="value" stroke="none">
                         {pieData.map((entry, index) => (
                           <Cell key={index} fill={entry.color} />
                         ))}
@@ -313,10 +312,7 @@ const Admin = () => {
                 <div className="w-1/2 space-y-2">
                   {pieData.map((item, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <div
-                        className="h-2.5 w-2.5 rounded-sm shrink-0"
-                        style={{ backgroundColor: item.color }}
-                      />
+                      <div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
                       <span className="text-foreground text-[10px] truncate">{item.name}</span>
                       <span className="text-muted-foreground text-[10px] ml-auto">{item.value}</span>
                     </div>
@@ -326,16 +322,134 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
+          {/* ===== RESGATES TAB ===== */}
+          <TabsContent value="resgates" className="mt-4 pb-20 space-y-4">
+            {/* Pending */}
+            <div>
+              <h2 className="text-foreground text-sm font-display font-bold mb-3 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Resgates Pendentes
+              </h2>
+              {pendingRedemptions.filter((r) => r.status === "pending").length === 0 ? (
+                <Card className="bg-card border-border">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-3xl mb-2">📭</p>
+                    <p className="text-muted-foreground text-xs">Nenhum resgate pendente</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                pendingRedemptions
+                  .filter((r) => r.status === "pending")
+                  .map((r) => (
+                    <motion.div
+                      key={r.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <Card className="bg-card border-border mb-3 border-l-4 border-l-primary">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="text-foreground text-xs font-semibold">{r.clientName}</p>
+                              <p className="text-muted-foreground text-[10px]">{r.clientEmail}</p>
+                            </div>
+                            <p className="text-muted-foreground text-[10px]">
+                              {new Date(r.date).toLocaleString("pt-BR", {
+                                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                          <div className="space-y-1 mb-3">
+                            {r.rewards.map((name, i) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <span className="text-primary text-[10px]">•</span>
+                                <span className="text-foreground text-xs">{name}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-primary text-xs font-display font-bold mb-3">{r.totalPoints} pontos</p>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirm(r.id)}
+                              disabled={processingId === r.id}
+                              className="flex-1 text-[10px] font-display tracking-wider"
+                            >
+                              {processingId === r.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" />
+                                  CONFIRMAR
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setShowRejectDialog(r.id)}
+                              disabled={processingId === r.id}
+                              className="flex-1 text-[10px] font-display tracking-wider border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              RECUSAR
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))
+              )}
+            </div>
+
+            {/* History */}
+            <div>
+              <h2 className="text-foreground text-sm font-display font-bold mb-3">Histórico de Resgates</h2>
+              {pendingRedemptions.filter((r) => r.status !== "pending").length === 0 ? (
+                <Card className="bg-card border-border">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-3xl mb-2">📋</p>
+                    <p className="text-muted-foreground text-xs">Nenhum resgate no histórico</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                pendingRedemptions
+                  .filter((r) => r.status !== "pending")
+                  .map((r) => (
+                    <Card key={r.id} className={`bg-card border-border mb-2 border-l-4 ${
+                      r.status === "confirmed" ? "border-l-secondary" : "border-l-destructive"
+                    }`}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-foreground text-xs font-semibold">{r.clientName}</p>
+                            <p className="text-muted-foreground text-[10px]">{r.rewards.join(", ")}</p>
+                            {r.rejectReason && (
+                              <p className="text-destructive text-[10px] mt-1">Motivo: {r.rejectReason}</p>
+                            )}
+                          </div>
+                          <span className={`text-[10px] font-display px-2 py-0.5 rounded-full ${
+                            r.status === "confirmed"
+                              ? "bg-secondary/20 text-secondary-foreground"
+                              : "bg-destructive/20 text-destructive"
+                          }`}>
+                            {r.status === "confirmed" ? "✓ ENTREGUE" : "✕ RECUSADO"}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+              )}
+            </div>
+          </TabsContent>
+
           {/* ===== REPORTS TAB ===== */}
           <TabsContent value="reports" className="mt-4 pb-20 space-y-4">
-            {/* Hourly traffic */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-foreground text-sm font-display">
-                    Horário de Pico
-                  </CardTitle>
+                  <CardTitle className="text-foreground text-sm font-display">Horário de Pico</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="px-2 pb-4">
@@ -351,13 +465,7 @@ const Admin = () => {
                     <XAxis dataKey="hora" tick={{ fill: "hsl(30, 20%, 55%)", fontSize: 9 }} />
                     <YAxis tick={{ fill: "hsl(30, 20%, 55%)", fontSize: 10 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area
-                      type="monotone"
-                      dataKey="clientes"
-                      stroke="hsl(32, 90%, 50%)"
-                      fill="url(#colorClientes)"
-                      strokeWidth={2}
-                    />
+                    <Area type="monotone" dataKey="clientes" stroke="hsl(32, 90%, 50%)" fill="url(#colorClientes)" strokeWidth={2} />
                   </AreaChart>
                 </ChartContainer>
                 <div className="px-4 mt-2 flex items-center gap-2">
@@ -369,14 +477,11 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Weekly trend */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-foreground text-sm font-display">
-                    Tendência Mensal
-                  </CardTitle>
+                  <CardTitle className="text-foreground text-sm font-display">Tendência Mensal</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="px-2 pb-4">
@@ -386,20 +491,8 @@ const Admin = () => {
                     <XAxis dataKey="semana" tick={{ fill: "hsl(30, 20%, 55%)", fontSize: 10 }} />
                     <YAxis tick={{ fill: "hsl(30, 20%, 55%)", fontSize: 10 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line
-                      type="monotone"
-                      dataKey="clientes"
-                      stroke="hsl(32, 90%, 50%)"
-                      strokeWidth={2}
-                      dot={{ fill: "hsl(32, 90%, 50%)", r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="resgates"
-                      stroke="hsl(150, 50%, 30%)"
-                      strokeWidth={2}
-                      dot={{ fill: "hsl(150, 50%, 30%)", r: 4 }}
-                    />
+                    <Line type="monotone" dataKey="clientes" stroke="hsl(32, 90%, 50%)" strokeWidth={2} dot={{ fill: "hsl(32, 90%, 50%)", r: 4 }} />
+                    <Line type="monotone" dataKey="resgates" stroke="hsl(150, 50%, 30%)" strokeWidth={2} dot={{ fill: "hsl(150, 50%, 30%)", r: 4 }} />
                   </LineChart>
                 </ChartContainer>
                 <div className="px-4 mt-2 flex gap-4">
@@ -415,14 +508,11 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Promo performance */}
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 px-4 pt-4">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-foreground text-sm font-display">
-                    Performance das Promoções
-                  </CardTitle>
+                  <CardTitle className="text-foreground text-sm font-display">Performance das Promoções</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="px-0 pb-2">
@@ -441,9 +531,7 @@ const Admin = () => {
                         <TableCell className="py-2 pl-4 text-foreground text-xs">{p.promo}</TableCell>
                         <TableCell className="text-foreground text-xs text-center">{p.impressoes}</TableCell>
                         <TableCell className="text-foreground text-xs text-center">{p.cliques}</TableCell>
-                        <TableCell className="text-primary text-xs text-right pr-4 font-bold">
-                          {p.conversao}
-                        </TableCell>
+                        <TableCell className="text-primary text-xs text-right pr-4 font-bold">{p.conversao}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -451,7 +539,6 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Summary cards */}
             <div className="grid grid-cols-2 gap-3">
               <Card className="bg-card border-border">
                 <CardContent className="p-4 text-center">
@@ -492,6 +579,34 @@ const Admin = () => {
           Powered by EYWA • Painel Administrativo
         </p>
       </div>
+
+      {/* Reject dialog */}
+      <AlertDialog open={showRejectDialog !== null} onOpenChange={() => setShowRejectDialog(null)}>
+        <AlertDialogContent className="bg-card border-border max-w-[90vw] rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground font-display text-sm">Recusar Resgate</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-xs">
+              Informe o motivo da recusa para notificar o cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            placeholder="Motivo da recusa..."
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            className="bg-muted border-border text-foreground text-xs"
+          />
+          <AlertDialogFooter className="flex-row gap-2">
+            <AlertDialogCancel className="flex-1 bg-muted border-border text-foreground text-xs">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReject}
+              disabled={!rejectReason.trim() || processingId !== null}
+              className="flex-1 text-xs font-display bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {processingId !== null ? <Loader2 className="h-3 w-3 animate-spin" /> : "Recusar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
