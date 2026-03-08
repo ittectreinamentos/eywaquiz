@@ -22,8 +22,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
-// --- Mock Data ---
+// --- Mock chart data (unchanged) ---
 const engagementData = [
   { day: "Seg", interacoes: 42, pontos: 1680 },
   { day: "Ter", interacoes: 58, pontos: 2320 },
@@ -83,15 +85,15 @@ const chartConfig = {
   resgates: { label: "Resgates", color: "hsl(150, 50%, 30%)" },
 };
 
-interface PendingRedemption {
-  id: number;
-  clientEmail: string;
-  clientName: string;
-  rewards: string[];
-  totalPoints: number;
-  date: string;
-  status: "pending" | "confirmed" | "rejected";
-  rejectReason?: string;
+interface Resgate {
+  id: string;
+  cliente_id: string;
+  recompensa_id: string;
+  status: string;
+  motivo_recusa: string | null;
+  criado_em: string;
+  profiles: { nome: string | null; email: string | null } | null;
+  recompensas: { titulo: string | null; pontos_necessarios: number | null } | null;
 }
 
 const MetricCard = ({
@@ -121,50 +123,71 @@ const MetricCard = ({
 const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, profile, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [pendingRedemptions, setPendingRedemptions] = useState<PendingRedemption[]>([]);
-  const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
+  const [resgates, setResgates] = useState<Resgate[]>([]);
+  const [showRejectDialog, setShowRejectDialog] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Load pending redemptions from localStorage
+  // Fetch resgates from Supabase
+  const fetchResgates = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("resgates")
+      .select("*, profiles:cliente_id(nome, email), recompensas:recompensa_id(titulo, pontos_necessarios)")
+      .eq("lojista_id", user.id)
+      .order("criado_em", { ascending: false });
+    if (data) setResgates(data as unknown as Resgate[]);
+  };
+
   useEffect(() => {
-    const load = () => {
-      const stored = JSON.parse(localStorage.getItem("eywa_pending_redemptions") || "[]");
-      setPendingRedemptions(stored);
+    fetchResgates();
+  }, [user]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("resgates-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "resgates", filter: `lojista_id=eq.${user.id}` },
+        () => {
+          fetchResgates();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
-    load();
-    const interval = setInterval(load, 3000); // poll every 3s
-    return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
-  const pendingCount = pendingRedemptions.filter((r) => r.status === "pending").length;
+  const pendingCount = resgates.filter((r) => r.status === "pendente").length;
 
-  const handleConfirm = async (id: number) => {
+  const handleConfirm = async (id: string) => {
     setProcessingId(id);
-    await new Promise((r) => setTimeout(r, 1000));
-    const updated = pendingRedemptions.map((r) =>
-      r.id === id ? { ...r, status: "confirmed" as const } : r
-    );
-    setPendingRedemptions(updated);
-    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(updated));
+    await supabase.from("resgates").update({ status: "confirmado" }).eq("id", id);
+    await fetchResgates();
     setProcessingId(null);
     toast({ title: "Resgate confirmado!", description: "O cliente foi notificado." });
   };
 
   const handleReject = async () => {
-    if (showRejectDialog === null) return;
+    if (!showRejectDialog) return;
     setProcessingId(showRejectDialog);
-    await new Promise((r) => setTimeout(r, 1000));
-    const updated = pendingRedemptions.map((r) =>
-      r.id === showRejectDialog ? { ...r, status: "rejected" as const, rejectReason } : r
-    );
-    setPendingRedemptions(updated);
-    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(updated));
+    await supabase.from("resgates").update({ status: "recusado", motivo_recusa: rejectReason }).eq("id", showRejectDialog);
+    await fetchResgates();
     setProcessingId(null);
     setShowRejectDialog(null);
     setRejectReason("");
     toast({ title: "Resgate recusado", description: "O cliente foi notificado.", variant: "destructive" });
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
   };
 
   return (
@@ -172,25 +195,16 @@ const Admin = () => {
       {/* Header */}
       <div className="sticky top-0 z-20 bg-card/90 backdrop-blur-md border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/")}
-            className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-          >
+          <button onClick={handleLogout} className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
             <ArrowLeft className="h-4 w-4 text-foreground" />
           </button>
           <div className="flex-1">
-            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">
-              PAINEL ADMIN
-            </h1>
+            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">PAINEL ADMIN</h1>
             <p className="text-muted-foreground text-[10px]">
-              Padaria Pão Dourado • EYWA Analytics
+              {profile?.nome || "Lojista"} • EYWA Analytics
             </p>
           </div>
-          {/* Notification bell */}
-          <button
-            onClick={() => setActiveTab("resgates")}
-            className="relative p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-          >
+          <button onClick={() => setActiveTab("resgates")} className="relative p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
             <Bell className="h-4 w-4 text-foreground" />
             {pendingCount > 0 && (
               <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
@@ -208,31 +222,19 @@ const Admin = () => {
       <div className="px-4 pt-3">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full bg-muted border border-border">
-            <TabsTrigger
-              value="dashboard"
-              className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              <BarChart3 className="h-3 w-3 mr-1" />
-              Dashboard
+            <TabsTrigger value="dashboard" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="h-3 w-3 mr-1" />Dashboard
             </TabsTrigger>
-            <TabsTrigger
-              value="resgates"
-              className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative"
-            >
-              <Gift className="h-3 w-3 mr-1" />
-              Resgates
+            <TabsTrigger value="resgates" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative">
+              <Gift className="h-3 w-3 mr-1" />Resgates
               {pendingCount > 0 && (
                 <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
                   {pendingCount}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger
-              value="reports"
-              className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              <FileText className="h-3 w-3 mr-1" />
-              Relatórios
+            <TabsTrigger value="reports" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <FileText className="h-3 w-3 mr-1" />Relatórios
             </TabsTrigger>
           </TabsList>
 
@@ -241,7 +243,7 @@ const Admin = () => {
             <div className="grid grid-cols-2 gap-3">
               <MetricCard icon={Users} label="Total Interações" value="510" sub="últimos 7 dias" trend="+18%" />
               <MetricCard icon={TrendingUp} label="Pontos Distribuídos" value="20.400" sub="últimos 7 dias" trend="+24%" />
-              <MetricCard icon={Gift} label="Resgates Realizados" value="253" sub="últimos 7 dias" trend="+12%" />
+              <MetricCard icon={Gift} label="Resgates Realizados" value={String(resgates.filter(r => r.status === "confirmado").length)} sub="confirmados" trend="+12%" />
               <MetricCard icon={ShoppingBag} label="Ticket Médio Est." value="R$18,50" sub="aumento de R$3,20" trend="+21%" />
             </div>
 
@@ -324,13 +326,12 @@ const Admin = () => {
 
           {/* ===== RESGATES TAB ===== */}
           <TabsContent value="resgates" className="mt-4 pb-20 space-y-4">
-            {/* Pending */}
             <div>
               <h2 className="text-foreground text-sm font-display font-bold mb-3 flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                 Resgates Pendentes
               </h2>
-              {pendingRedemptions.filter((r) => r.status === "pending").length === 0 ? (
+              {resgates.filter((r) => r.status === "pendente").length === 0 ? (
                 <Card className="bg-card border-border">
                   <CardContent className="p-6 text-center">
                     <p className="text-3xl mb-2">📭</p>
@@ -338,61 +339,37 @@ const Admin = () => {
                   </CardContent>
                 </Card>
               ) : (
-                pendingRedemptions
-                  .filter((r) => r.status === "pending")
+                resgates
+                  .filter((r) => r.status === "pendente")
                   .map((r) => (
-                    <motion.div
-                      key={r.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
+                    <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                       <Card className="bg-card border-border mb-3 border-l-4 border-l-primary">
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <p className="text-foreground text-xs font-semibold">{r.clientName}</p>
-                              <p className="text-muted-foreground text-[10px]">{r.clientEmail}</p>
+                              <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
+                              <p className="text-muted-foreground text-[10px]">{r.profiles?.email}</p>
                             </div>
                             <p className="text-muted-foreground text-[10px]">
-                              {new Date(r.date).toLocaleString("pt-BR", {
+                              {new Date(r.criado_em).toLocaleString("pt-BR", {
                                 day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                               })}
                             </p>
                           </div>
                           <div className="space-y-1 mb-3">
-                            {r.rewards.map((name, i) => (
-                              <div key={i} className="flex items-center gap-1">
-                                <span className="text-primary text-[10px]">•</span>
-                                <span className="text-foreground text-xs">{name}</span>
-                              </div>
-                            ))}
+                            <div className="flex items-center gap-1">
+                              <span className="text-primary text-[10px]">•</span>
+                              <span className="text-foreground text-xs">{r.recompensas?.titulo}</span>
+                            </div>
                           </div>
-                          <p className="text-primary text-xs font-display font-bold mb-3">{r.totalPoints} pontos</p>
+                          <p className="text-primary text-xs font-display font-bold mb-3">{r.recompensas?.pontos_necessarios} pontos</p>
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleConfirm(r.id)}
-                              disabled={processingId === r.id}
-                              className="flex-1 text-[10px] font-display tracking-wider"
-                            >
-                              {processingId === r.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <>
-                                  <Check className="h-3 w-3 mr-1" />
-                                  CONFIRMAR
-                                </>
-                              )}
+                            <Button size="sm" onClick={() => handleConfirm(r.id)} disabled={processingId === r.id} className="flex-1 text-[10px] font-display tracking-wider">
+                              {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : (<><Check className="h-3 w-3 mr-1" />CONFIRMAR</>)}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setShowRejectDialog(r.id)}
-                              disabled={processingId === r.id}
-                              className="flex-1 text-[10px] font-display tracking-wider border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              RECUSAR
+                            <Button size="sm" variant="outline" onClick={() => setShowRejectDialog(r.id)} disabled={processingId === r.id}
+                              className="flex-1 text-[10px] font-display tracking-wider border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                              <X className="h-3 w-3 mr-1" />RECUSAR
                             </Button>
                           </div>
                         </CardContent>
@@ -405,7 +382,7 @@ const Admin = () => {
             {/* History */}
             <div>
               <h2 className="text-foreground text-sm font-display font-bold mb-3">Histórico de Resgates</h2>
-              {pendingRedemptions.filter((r) => r.status !== "pending").length === 0 ? (
+              {resgates.filter((r) => r.status !== "pendente").length === 0 ? (
                 <Card className="bg-card border-border">
                   <CardContent className="p-6 text-center">
                     <p className="text-3xl mb-2">📋</p>
@@ -413,27 +390,21 @@ const Admin = () => {
                   </CardContent>
                 </Card>
               ) : (
-                pendingRedemptions
-                  .filter((r) => r.status !== "pending")
+                resgates
+                  .filter((r) => r.status !== "pendente")
                   .map((r) => (
-                    <Card key={r.id} className={`bg-card border-border mb-2 border-l-4 ${
-                      r.status === "confirmed" ? "border-l-secondary" : "border-l-destructive"
-                    }`}>
+                    <Card key={r.id} className={`bg-card border-border mb-2 border-l-4 ${r.status === "confirmado" ? "border-l-secondary" : "border-l-destructive"}`}>
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-foreground text-xs font-semibold">{r.clientName}</p>
-                            <p className="text-muted-foreground text-[10px]">{r.rewards.join(", ")}</p>
-                            {r.rejectReason && (
-                              <p className="text-destructive text-[10px] mt-1">Motivo: {r.rejectReason}</p>
-                            )}
+                            <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
+                            <p className="text-muted-foreground text-[10px]">{r.recompensas?.titulo}</p>
+                            {r.motivo_recusa && <p className="text-destructive text-[10px] mt-1">Motivo: {r.motivo_recusa}</p>}
                           </div>
                           <span className={`text-[10px] font-display px-2 py-0.5 rounded-full ${
-                            r.status === "confirmed"
-                              ? "bg-secondary/20 text-secondary-foreground"
-                              : "bg-destructive/20 text-destructive"
+                            r.status === "confirmado" ? "bg-secondary/20 text-secondary-foreground" : "bg-destructive/20 text-destructive"
                           }`}>
-                            {r.status === "confirmed" ? "✓ ENTREGUE" : "✕ RECUSADO"}
+                            {r.status === "confirmado" ? "✓ ENTREGUE" : "✕ RECUSADO"}
                           </span>
                         </div>
                       </CardContent>
@@ -470,9 +441,7 @@ const Admin = () => {
                 </ChartContainer>
                 <div className="px-4 mt-2 flex items-center gap-2">
                   <span className="text-primary text-lg">🔥</span>
-                  <p className="text-foreground text-xs">
-                    Pico às <span className="text-primary font-bold">17h</span> com 40 clientes
-                  </p>
+                  <p className="text-foreground text-xs">Pico às <span className="text-primary font-bold">17h</span> com 40 clientes</p>
                 </div>
               </CardContent>
             </Card>
@@ -573,11 +542,8 @@ const Admin = () => {
         </Tabs>
       </div>
 
-      {/* Footer */}
       <div className="px-4 py-4 text-center">
-        <p className="text-muted-foreground text-[10px] opacity-50">
-          Powered by EYWA • Painel Administrativo
-        </p>
+        <p className="text-muted-foreground text-[10px] opacity-50">Powered by EYWA • Painel Administrativo</p>
       </div>
 
       {/* Reject dialog */}
@@ -589,19 +555,11 @@ const Admin = () => {
               Informe o motivo da recusa para notificar o cliente.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <Input
-            placeholder="Motivo da recusa..."
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            className="bg-muted border-border text-foreground text-xs"
-          />
+          <Input placeholder="Motivo da recusa..." value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="bg-muted border-border text-foreground text-xs" />
           <AlertDialogFooter className="flex-row gap-2">
             <AlertDialogCancel className="flex-1 bg-muted border-border text-foreground text-xs">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleReject}
-              disabled={!rejectReason.trim() || processingId !== null}
-              className="flex-1 text-xs font-display bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleReject} disabled={!rejectReason.trim() || processingId !== null}
+              className="flex-1 text-xs font-display bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {processingId !== null ? <Loader2 className="h-3 w-3 animate-spin" /> : "Recusar"}
             </AlertDialogAction>
           </AlertDialogFooter>

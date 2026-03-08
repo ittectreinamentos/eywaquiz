@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -8,14 +8,24 @@ import { useToast } from "@/hooks/use-toast";
 import Particles from "@/components/Particles";
 import eywaLogo from "@/assets/eywa-logo.png";
 import { Loader2, User, Store } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signIn, profile, user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<"cliente" | "lojista">("cliente");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      if (profile.role === "lojista") navigate("/admin", { replace: true });
+      else navigate("/experience", { replace: true });
+    }
+  }, [authLoading, user, profile, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,19 +35,16 @@ const Login = () => {
     }
     setLoading(true);
 
-    // Mock login — replace with real auth later
-    await new Promise((r) => setTimeout(r, 1200));
+    const { error } = await signIn(email, password);
 
-    localStorage.setItem("eywa_role", role);
-    localStorage.setItem("eywa_user", JSON.stringify({ email, role }));
+    if (error) {
+      toast({ title: "Erro no login", description: error, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
 
     toast({ title: "Login realizado com sucesso!" });
-
-    if (role === "lojista") {
-      navigate("/admin");
-    } else {
-      navigate("/experience");
-    }
+    // Redirect will happen via useEffect when profile loads
     setLoading(false);
   };
 
@@ -50,7 +57,6 @@ const Login = () => {
       <Particles count={8} />
 
       <div className="relative z-10 w-full max-w-sm space-y-6">
-        {/* Logo */}
         <motion.div
           className="flex flex-col items-center gap-3"
           initial={{ y: -20, opacity: 0 }}
@@ -61,7 +67,6 @@ const Login = () => {
           <p className="text-muted-foreground text-xs">Experiência Gamificada Inteligente</p>
         </motion.div>
 
-        {/* Tabs */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -84,13 +89,11 @@ const Login = () => {
                 Lojista
               </TabsTrigger>
             </TabsList>
-
             <TabsContent value="cliente" className="mt-0" />
             <TabsContent value="lojista" className="mt-0" />
           </Tabs>
         </motion.div>
 
-        {/* Form */}
         <motion.form
           onSubmit={handleLogin}
           className="space-y-4"
@@ -120,7 +123,7 @@ const Login = () => {
               type="button"
               className="text-primary text-xs hover:underline"
               onClick={() =>
-                toast({ title: "Funcionalidade em breve", description: "Recuperação de senha será implementada com Lovable Cloud." })
+                toast({ title: "Funcionalidade em breve", description: "Recuperação de senha será implementada." })
               }
             >
               Esqueci minha senha
@@ -143,7 +146,6 @@ const Login = () => {
           </Button>
         </motion.form>
 
-        {/* Signup link */}
         <motion.div
           className="text-center"
           initial={{ opacity: 0 }}
@@ -161,7 +163,6 @@ const Login = () => {
           </p>
         </motion.div>
 
-        {/* Footer */}
         <p className="text-muted-foreground text-[10px] text-center opacity-50 pt-4">
           Powered by EYWA • Experiência Gamificada Inteligente
         </p>

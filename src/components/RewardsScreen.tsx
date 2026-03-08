@@ -4,16 +4,12 @@ import Particles from "./Particles";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RewardsScreenProps {
   score: number;
@@ -31,6 +27,7 @@ const rewards = [
 
 const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [timeLeft, setTimeLeft] = useState(600);
   const [redeemed, setRedeemed] = useState<number[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -56,28 +53,69 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
   };
 
   const handleValidateResgate = async () => {
+    if (!user) return;
     setValidating(true);
-    // Mock — save pending redemption and notify merchant
-    const pendingRedemptions = JSON.parse(localStorage.getItem("eywa_pending_redemptions") || "[]");
-    pendingRedemptions.push({
-      id: Date.now(),
-      clientEmail: JSON.parse(localStorage.getItem("eywa_user") || '{"email":"cliente@email.com"}').email,
-      clientName: "Cliente EYWA",
-      rewards: redeemed.map((idx) => rewards[idx].name),
-      totalPoints: redeemed.reduce((acc, idx) => acc + rewards[idx].points, 0),
-      date: new Date().toISOString(),
-      status: "pending",
-    });
-    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(pendingRedemptions));
 
-    await new Promise((r) => setTimeout(r, 1500));
-    setValidating(false);
-    setValidated(true);
-    setShowConfirm(false);
-    toast({
-      title: "Resgate enviado!",
-      description: "Aguardando validação do lojista.",
-    });
+    try {
+      // Find a lojista to associate (first one found)
+      const { data: lojistas } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "lojista")
+        .limit(1);
+
+      const lojistaId = lojistas?.[0]?.id;
+
+      // First, get or create recompensas in the DB matching our local rewards
+      for (const idx of redeemed) {
+        const r = rewards[idx];
+        
+        // Check if recompensa exists
+        let { data: existing } = await supabase
+          .from("recompensas")
+          .select("id")
+          .eq("titulo", r.name)
+          .eq("ativo", true)
+          .limit(1);
+
+        let recompensaId = existing?.[0]?.id;
+
+        if (!recompensaId && lojistaId) {
+          const { data: created } = await supabase
+            .from("recompensas")
+            .insert({
+              lojista_id: lojistaId,
+              titulo: r.name,
+              descricao: r.desc,
+              pontos_necessarios: r.points,
+              ativo: true,
+            })
+            .select("id")
+            .single();
+          recompensaId = created?.id;
+        }
+
+        if (recompensaId && lojistaId) {
+          await supabase.from("resgates").insert({
+            cliente_id: user.id,
+            lojista_id: lojistaId,
+            recompensa_id: recompensaId,
+            status: "pendente",
+          });
+        }
+      }
+
+      setValidated(true);
+      setShowConfirm(false);
+      toast({
+        title: "Resgate enviado!",
+        description: "Aguardando validação do lojista.",
+      });
+    } catch (err) {
+      toast({ title: "Erro ao enviar resgate", variant: "destructive" });
+    } finally {
+      setValidating(false);
+    }
   };
 
   return (
@@ -93,10 +131,7 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {onBack && (
-              <button
-                onClick={onBack}
-                className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-              >
+              <button onClick={onBack} className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
                 <ArrowLeft className="h-4 w-4 text-foreground" />
               </button>
             )}
@@ -111,7 +146,6 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
           </div>
         </div>
 
-        {/* Timer */}
         <div className="mt-2 flex items-center gap-2 bg-card/50 rounded-full px-3 py-1.5 border border-border">
           <span className="text-ember text-xs">⏳</span>
           <p className="text-foreground text-xs">
@@ -122,7 +156,6 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
           </p>
         </div>
 
-        {/* Validated status */}
         {validated && (
           <motion.div
             className="mt-2 px-3 py-2 rounded-lg bg-secondary/20 border border-secondary text-center"
@@ -146,10 +179,8 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
               <motion.div
                 key={idx}
                 className={`rounded-xl border p-3 flex flex-col items-center text-center transition-all ${
-                  isRedeemed
-                    ? "border-forest bg-forest/10"
-                    : canRedeem
-                    ? "border-gold bg-card glow-gold"
+                  isRedeemed ? "border-forest bg-forest/10"
+                    : canRedeem ? "border-gold bg-card glow-gold"
                     : "border-border bg-card/50 opacity-60"
                 }`}
                 initial={{ opacity: 0, y: 20 }}
@@ -172,16 +203,13 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
                     RESGATAR
                   </button>
                 ) : (
-                  <span className="text-muted-foreground text-[10px]">
-                    Faltam {r.points - currentScore} pts
-                  </span>
+                  <span className="text-muted-foreground text-[10px]">Faltam {r.points - currentScore} pts</span>
                 )}
               </motion.div>
             );
           })}
         </div>
 
-        {/* Return message */}
         <motion.div
           className="mt-6 p-4 rounded-xl bg-card border border-border text-center"
           initial={{ opacity: 0 }}
@@ -189,39 +217,27 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
           transition={{ delay: 0.8 }}
         >
           <p className="text-foreground text-sm">🔄 Volte amanhã e dobre seus pontos!</p>
-          <p className="text-muted-foreground text-[10px] mt-1">
-            Quanto mais você joga, mais recompensas desbloqueia.
-          </p>
+          <p className="text-muted-foreground text-[10px] mt-1">Quanto mais você joga, mais recompensas desbloqueia.</p>
         </motion.div>
       </div>
 
-      {/* Validate button fixed at bottom */}
+      {/* Validate button */}
       {redeemed.length > 0 && !validated && (
         <div className="absolute bottom-12 left-0 right-0 z-20 px-4">
-          <Button
-            onClick={() => setShowConfirm(true)}
-            className="w-full font-display tracking-wider text-sm glow-gold-strong"
-            size="lg"
-          >
+          <Button onClick={() => setShowConfirm(true)} className="w-full font-display tracking-wider text-sm glow-gold-strong" size="lg">
             ✅ VALIDAR RESGATE ({redeemed.length} {redeemed.length === 1 ? "item" : "itens"})
           </Button>
         </div>
       )}
 
-      {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 z-10 px-4 py-3 bg-gradient-to-t from-background to-transparent text-center">
-        <p className="text-muted-foreground text-[10px] opacity-50">
-          Powered by EYWA • Experiência Gamificada Inteligente
-        </p>
+        <p className="text-muted-foreground text-[10px] opacity-50">Powered by EYWA • Experiência Gamificada Inteligente</p>
       </div>
 
-      {/* Confirmation dialog */}
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent className="bg-card border-border max-w-[90vw] rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground font-display text-sm">
-              Confirmar Resgate
-            </AlertDialogTitle>
+            <AlertDialogTitle className="text-foreground font-display text-sm">Confirmar Resgate</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground text-xs">
               Tem certeza que deseja confirmar o resgate dessas recompensas?
               <div className="mt-3 space-y-1">
@@ -236,22 +252,9 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2">
-            <AlertDialogCancel className="flex-1 bg-muted border-border text-foreground text-xs">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleValidateResgate}
-              disabled={validating}
-              className="flex-1 text-xs font-display"
-            >
-              {validating ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                  Validando...
-                </>
-              ) : (
-                "Confirmar"
-              )}
+            <AlertDialogCancel className="flex-1 bg-muted border-border text-foreground text-xs">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleValidateResgate} disabled={validating} className="flex-1 text-xs font-display">
+              {validating ? (<><Loader2 className="h-3 w-3 animate-spin mr-1" />Validando...</>) : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
