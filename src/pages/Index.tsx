@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import EywaEntry from "@/components/EywaEntry";
 import BakeryTransition from "@/components/BakeryTransition";
 import QuizScreen from "@/components/QuizScreen";
@@ -9,6 +10,7 @@ import RewardsScreen from "@/components/RewardsScreen";
 type Screen = "entry" | "bakery" | "quiz" | "result" | "rewards";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>("entry");
   const [score, setScore] = useState(0);
 
@@ -38,7 +40,11 @@ const Index = () => {
           />
         )}
         {screen === "rewards" && (
-          <RewardsScreen key="rewards" score={score} />
+          <RewardsScreen
+            key="rewards"
+            score={score}
+            onBack={() => setScreen("result")}
+          />
         )}
       </AnimatePresence>
     </div>

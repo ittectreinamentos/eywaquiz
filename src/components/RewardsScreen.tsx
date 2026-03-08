@@ -1,9 +1,23 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Particles from "./Particles";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface RewardsScreenProps {
   score: number;
+  onBack?: () => void;
 }
 
 const rewards = [
@@ -15,9 +29,13 @@ const rewards = [
   { name: "Vale Compras R$20", desc: "Use em qualquer produto", points: 150, emoji: "🎁" },
 ];
 
-const RewardsScreen = ({ score }: RewardsScreenProps) => {
+const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
+  const { toast } = useToast();
   const [timeLeft, setTimeLeft] = useState(600);
   const [redeemed, setRedeemed] = useState<number[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validated, setValidated] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -28,7 +46,6 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
-
   const currentScore = score - redeemed.reduce((acc, idx) => acc + rewards[idx].points, 0);
 
   const handleRedeem = (idx: number) => {
@@ -36,6 +53,31 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
     if (currentScore >= rewards[idx].points) {
       setRedeemed([...redeemed, idx]);
     }
+  };
+
+  const handleValidateResgate = async () => {
+    setValidating(true);
+    // Mock — save pending redemption and notify merchant
+    const pendingRedemptions = JSON.parse(localStorage.getItem("eywa_pending_redemptions") || "[]");
+    pendingRedemptions.push({
+      id: Date.now(),
+      clientEmail: JSON.parse(localStorage.getItem("eywa_user") || '{"email":"cliente@email.com"}').email,
+      clientName: "Cliente EYWA",
+      rewards: redeemed.map((idx) => rewards[idx].name),
+      totalPoints: redeemed.reduce((acc, idx) => acc + rewards[idx].points, 0),
+      date: new Date().toISOString(),
+      status: "pending",
+    });
+    localStorage.setItem("eywa_pending_redemptions", JSON.stringify(pendingRedemptions));
+
+    await new Promise((r) => setTimeout(r, 1500));
+    setValidating(false);
+    setValidated(true);
+    setShowConfirm(false);
+    toast({
+      title: "Resgate enviado!",
+      description: "Aguardando validação do lojista.",
+    });
   };
 
   return (
@@ -49,9 +91,19 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
       {/* Header */}
       <div className="relative z-10 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-gold font-display text-xs tracking-wider">VITRINE DE RECOMPENSAS</p>
-            <p className="text-muted-foreground text-[10px]">Padaria Pão Dourado</p>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="p-1.5 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4 text-foreground" />
+              </button>
+            )}
+            <div>
+              <p className="text-gold font-display text-xs tracking-wider">VITRINE DE RECOMPENSAS</p>
+              <p className="text-muted-foreground text-[10px]">Padaria Pão Dourado</p>
+            </div>
           </div>
           <div className="text-right">
             <p className="text-gold font-display text-lg font-bold">{currentScore}</p>
@@ -69,10 +121,21 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
             </span>
           </p>
         </div>
+
+        {/* Validated status */}
+        {validated && (
+          <motion.div
+            className="mt-2 px-3 py-2 rounded-lg bg-secondary/20 border border-secondary text-center"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <p className="text-secondary-foreground text-xs font-display">⏳ Aguardando validação do lojista</p>
+          </motion.div>
+        )}
       </div>
 
       {/* Rewards grid */}
-      <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-20">
+      <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-40">
         <div className="grid grid-cols-2 gap-3 pt-2">
           {rewards.map((r, idx) => {
             const canRedeem = currentScore >= r.points && !redeemed.includes(idx);
@@ -103,7 +166,8 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
                 ) : canRedeem ? (
                   <button
                     onClick={() => handleRedeem(idx)}
-                    className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-display tracking-wider hover:scale-105 transition-transform"
+                    disabled={validated}
+                    className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-display tracking-wider hover:scale-105 transition-transform disabled:opacity-50"
                   >
                     RESGATAR
                   </button>
@@ -131,12 +195,67 @@ const RewardsScreen = ({ score }: RewardsScreenProps) => {
         </motion.div>
       </div>
 
+      {/* Validate button fixed at bottom */}
+      {redeemed.length > 0 && !validated && (
+        <div className="absolute bottom-12 left-0 right-0 z-20 px-4">
+          <Button
+            onClick={() => setShowConfirm(true)}
+            className="w-full font-display tracking-wider text-sm glow-gold-strong"
+            size="lg"
+          >
+            ✅ VALIDAR RESGATE ({redeemed.length} {redeemed.length === 1 ? "item" : "itens"})
+          </Button>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 z-10 px-4 py-3 bg-gradient-to-t from-background to-transparent text-center">
         <p className="text-muted-foreground text-[10px] opacity-50">
           Powered by EYWA • Experiência Gamificada Inteligente
         </p>
       </div>
+
+      {/* Confirmation dialog */}
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent className="bg-card border-border max-w-[90vw] rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground font-display text-sm">
+              Confirmar Resgate
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-xs">
+              Tem certeza que deseja confirmar o resgate dessas recompensas?
+              <div className="mt-3 space-y-1">
+                {redeemed.map((idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-foreground">
+                    <span>{rewards[idx].emoji}</span>
+                    <span className="text-xs">{rewards[idx].name}</span>
+                    <span className="text-primary text-[10px] ml-auto font-display">{rewards[idx].points} pts</span>
+                  </div>
+                ))}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2">
+            <AlertDialogCancel className="flex-1 bg-muted border-border text-foreground text-xs">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleValidateResgate}
+              disabled={validating}
+              className="flex-1 text-xs font-display"
+            >
+              {validating ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  Validando...
+                </>
+              ) : (
+                "Confirmar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 };
