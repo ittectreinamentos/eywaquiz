@@ -214,7 +214,7 @@ const LojistaDashboard = () => {
             <ArrowLeft className="h-4 w-4 text-foreground" />
           </button>
           <div className="flex-1">
-            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">PAINEL ADMIN</h1>
+            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">PAINEL LOJISTA</h1>
             <p className="text-muted-foreground text-[10px]">
               {profile?.nome || "Lojista"} • EYWA Analytics
             </p>
