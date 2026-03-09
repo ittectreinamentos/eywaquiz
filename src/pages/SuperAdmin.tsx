@@ -30,10 +30,16 @@ interface Profile {
   cpf: string | null;
   telefone: string | null;
   role: string | null;
-  cidade: string | null;
-  status: string | null;
-  created_at: string | null;
-  loja_id: string | null;
+}
+
+interface LojistaWithLoja extends Profile {
+  loja?: {
+    id: string;
+    nome: string | null;
+    cidade: string | null;
+    status: string | null;
+    criado_em: string | null;
+  } | null;
 }
 
 interface DashboardStats {
