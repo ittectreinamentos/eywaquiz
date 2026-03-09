@@ -114,9 +114,8 @@ const SuperAdmin = () => {
   const fetchClientes = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
-      .eq("role", "cliente")
-      .order("created_at", { ascending: false });
+      .select("id, nome, email, cpf, telefone, role")
+      .eq("role", "cliente");
     if (data) setClientes(data as Profile[]);
   };
 
