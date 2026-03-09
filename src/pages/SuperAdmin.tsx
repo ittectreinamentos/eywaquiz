@@ -396,8 +396,6 @@ const SuperAdmin = () => {
                       <TableHead className="text-muted-foreground text-[10px]">Nome</TableHead>
                       <TableHead className="text-muted-foreground text-[10px]">Email</TableHead>
                       <TableHead className="text-muted-foreground text-[10px]">CPF</TableHead>
-                      <TableHead className="text-muted-foreground text-[10px] text-center">Status</TableHead>
-                      <TableHead className="text-muted-foreground text-[10px] text-center">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -406,17 +404,6 @@ const SuperAdmin = () => {
                         <TableCell className="text-foreground text-xs py-2">{c.nome || "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-[10px] py-2">{c.email || "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-[10px] py-2">{c.cpf || "—"}</TableCell>
-                        <TableCell className="text-center py-2">
-                          <Badge variant={c.status === "inativo" ? "destructive" : "default"} className="text-[9px] px-1.5 py-0">
-                            {c.status || "ativo"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center py-2">
-                          <Button size="icon" variant="ghost" className="h-6 w-6" disabled={processing === c.id}
-                            onClick={() => toggleStatus(c.id, c.status, "Cliente")}>
-                            {processing === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className={`h-3 w-3 ${c.status === "inativo" ? "text-secondary" : "text-destructive"}`} />}
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
