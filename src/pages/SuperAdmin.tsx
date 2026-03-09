@@ -98,16 +98,47 @@ const SuperAdmin = () => {
   }, [navigate]);
 
   const fetchLojistas = async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, nome, email, cpf, telefone, role, lojas:lojas!lojas_profile_id_fkey(id, nome, cidade, status, criado_em)")
-      .eq("role", "lojista");
+    const { data, error } = await supabase
+      .from("lojas")
+      .select(`
+        id,
+        nome,
+        cidade,
+        status,
+        criado_em,
+        profile_id,
+        profiles!profile_id (
+          id,
+          nome,
+          email,
+          cpf,
+          telefone,
+          role
+        )
+      `);
+
+    console.log("lojistas:", data, "erro:", error);
+
     if (data) {
-      const mapped = data.map((d: any) => ({
-        ...d,
-        loja: Array.isArray(d.lojas) ? d.lojas[0] ?? null : d.lojas ?? null,
-      }));
-      setLojistas(mapped as LojistaWithLoja[]);
+      const mapped = data.map((d: any) => {
+        const profile = d.profiles || {};
+        return {
+          id: profile.id || d.profile_id,
+          nome: profile.nome || d.nome,
+          email: profile.email || null,
+          cpf: profile.cpf || null,
+          telefone: profile.telefone || null,
+          role: profile.role || "lojista",
+          loja: {
+            id: d.id,
+            nome: d.nome,
+            cidade: d.cidade,
+            status: d.status,
+            criado_em: d.criado_em,
+          },
+        } as LojistaWithLoja;
+      });
+      setLojistas(mapped);
     }
   };
 
