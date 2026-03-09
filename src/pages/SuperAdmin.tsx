@@ -100,10 +100,15 @@ const SuperAdmin = () => {
   const fetchLojistas = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
-      .eq("role", "lojista")
-      .order("created_at", { ascending: false });
-    if (data) setLojistas(data as Profile[]);
+      .select("id, nome, email, cpf, telefone, role, lojas:lojas!lojas_profile_id_fkey(id, nome, cidade, status, criado_em)")
+      .eq("role", "lojista");
+    if (data) {
+      const mapped = data.map((d: any) => ({
+        ...d,
+        loja: Array.isArray(d.lojas) ? d.lojas[0] ?? null : d.lojas ?? null,
+      }));
+      setLojistas(mapped as LojistaWithLoja[]);
+    }
   };
 
   const fetchClientes = async () => {
