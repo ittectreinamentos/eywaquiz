@@ -121,7 +121,7 @@ const SuperAdmin = () => {
 
   const fetchStats = async () => {
     const [lojRes, cliRes, resgRes] = await Promise.all([
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "lojista").neq("status", "inativo"),
+      supabase.from("lojas").select("id", { count: "exact", head: true }).neq("status", "inativo"),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "cliente"),
       supabase.from("resgates").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     ]);
