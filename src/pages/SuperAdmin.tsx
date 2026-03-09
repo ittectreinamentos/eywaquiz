@@ -183,9 +183,7 @@ const SuperAdmin = () => {
       id: userId,
       nome: lojistaForm.nome,
       email: lojistaForm.email,
-      cidade: lojistaForm.cidade,
       role: "lojista",
-      status: "ativo",
     });
 
     if (profileError) {
@@ -194,8 +192,8 @@ const SuperAdmin = () => {
     }
 
     const { error: lojaError } = await supabase.from("lojas").insert({
+      profile_id: userId,
       nome: lojistaForm.nome,
-      owner_id: userId,
       cidade: lojistaForm.cidade,
     });
 
