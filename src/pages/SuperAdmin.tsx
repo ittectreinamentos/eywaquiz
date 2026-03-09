@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext"; // kept for signOut in other components if needed
+
 
 interface Profile {
   id: string;
