@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -8,25 +8,15 @@ import { useToast } from "@/hooks/use-toast";
 import Particles from "@/components/Particles";
 import eywaLogo from "@/assets/eywa-logo.png";
 import { Loader2, User, Store } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, profile, user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<"cliente" | "lojista">("cliente");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (!authLoading && user && profile) {
-      if (profile.role === "admin") navigate("/admin", { replace: true });
-      else if (profile.role === "lojista") navigate("/lojista", { replace: true });
-      else navigate("/experience", { replace: true });
-    }
-  }, [authLoading, user, profile, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,16 +26,32 @@ const Login = () => {
     }
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      toast({ title: "Erro no login", description: error, variant: "destructive" });
+    if (error || !authData.user) {
+      toast({ title: "Erro no login", description: error?.message, variant: "destructive" });
       setLoading(false);
       return;
     }
 
+    // Fetch role directly after login
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+
+    console.log("login profile:", profile, "error:", profileError);
+
     toast({ title: "Login realizado com sucesso!" });
-    // Redirect will happen via useEffect when profile loads
+
+    if (profile?.role === "admin") {
+      navigate("/admin", { replace: true });
+    } else if (profile?.role === "lojista") {
+      navigate("/lojista", { replace: true });
+    } else {
+      navigate("/experience", { replace: true });
+    }
     setLoading(false);
   };
 

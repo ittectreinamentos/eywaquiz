@@ -46,7 +46,8 @@ interface DashboardStats {
 const SuperAdmin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile, signOut, loading: authLoading } = useAuth();
+  const [adminProfile, setAdminProfile] = useState<Profile | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Lojistas
@@ -66,13 +67,29 @@ const SuperAdmin = () => {
 
   const [processing, setProcessing] = useState<string | null>(null);
 
-  // Route protection — wait for profile to load before checking role
+  // Simple direct auth check
   useEffect(() => {
-    if (authLoading) return;
-    if (!profile || profile.role !== "admin") {
-      navigate("/login", { replace: true });
-    }
-  }, [authLoading, profile, navigate]);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      console.log("admin check - profile:", profile, "error:", error);
+
+      if (!profile || profile.role !== "admin") {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setAdminProfile(profile as Profile);
+      setAuthChecked(true);
+    });
+  }, [navigate]);
 
   const fetchLojistas = async () => {
     const { data } = await supabase
