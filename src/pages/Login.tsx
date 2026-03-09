@@ -63,7 +63,13 @@ const Login = () => {
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <img src={eywaLogo} alt="EYWA Quiz" className="h-16 w-auto" />
+          <motion.img
+            src={eywaLogo}
+            alt="EYWA Quiz"
+            className="h-32 w-auto"
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+          />
           <p className="text-muted-foreground text-xs">Experiência Gamificada Inteligente</p>
         </motion.div>
 
