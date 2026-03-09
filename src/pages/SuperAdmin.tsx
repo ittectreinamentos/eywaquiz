@@ -145,7 +145,10 @@ const SuperAdmin = () => {
     }
     setSavingLojista(true);
 
-    // Create auth user
+    // Save current admin session before signUp changes it
+    const { data: { session: adminSession } } = await supabase.auth.getSession();
+
+    // Create auth user (signUp will switch the session to the new user)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: lojistaForm.email,
       password: lojistaForm.senha,
@@ -157,9 +160,11 @@ const SuperAdmin = () => {
       return;
     }
 
-    // Create profile
-    await supabase.from("profiles").insert({
-      id: authData.user.id,
+    const userId = authData.user.id;
+
+    // Insert profile
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
       nome: lojistaForm.nome,
       email: lojistaForm.email,
       cidade: lojistaForm.cidade,
@@ -167,7 +172,35 @@ const SuperAdmin = () => {
       status: "ativo",
     });
 
-    toast({ title: "Lojista cadastrado com sucesso!" });
+    if (profileError) {
+      console.error("Erro ao inserir profile:", profileError);
+      toast({ title: "Erro ao criar perfil", description: profileError.message, variant: "destructive" });
+    }
+
+    // Insert loja
+    const { error: lojaError } = await supabase.from("lojas").insert({
+      nome: lojistaForm.nome,
+      owner_id: userId,
+      cidade: lojistaForm.cidade,
+    });
+
+    if (lojaError) {
+      console.error("Erro ao inserir loja:", lojaError);
+      toast({ title: "Erro ao criar loja", description: lojaError.message, variant: "destructive" });
+    }
+
+    // Restore admin session
+    if (adminSession) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+    }
+
+    if (!profileError && !lojaError) {
+      toast({ title: "Lojista cadastrado com sucesso!" });
+    }
+
     setShowAddLojista(false);
     setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
     setSavingLojista(false);
