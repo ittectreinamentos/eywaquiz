@@ -143,12 +143,11 @@ const SuperAdmin = () => {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
       return;
     }
+
     setSavingLojista(true);
 
-    // Save current admin session before signUp changes it
     const { data: { session: adminSession } } = await supabase.auth.getSession();
 
-    // Create auth user (signUp will switch the session to the new user)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: lojistaForm.email,
       password: lojistaForm.senha,
@@ -162,7 +161,14 @@ const SuperAdmin = () => {
 
     const userId = authData.user.id;
 
-    // Insert profile
+    // Quando o signUp retorna sessão, garantimos contexto do novo usuário para inserts com RLS por auth.uid().
+    if (authData.session) {
+      await supabase.auth.setSession({
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+      });
+    }
+
     const { error: profileError } = await supabase.from("profiles").insert({
       id: userId,
       nome: lojistaForm.nome,
@@ -177,7 +183,6 @@ const SuperAdmin = () => {
       toast({ title: "Erro ao criar perfil", description: profileError.message, variant: "destructive" });
     }
 
-    // Insert loja
     const { error: lojaError } = await supabase.from("lojas").insert({
       nome: lojistaForm.nome,
       owner_id: userId,
@@ -189,7 +194,6 @@ const SuperAdmin = () => {
       toast({ title: "Erro ao criar loja", description: lojaError.message, variant: "destructive" });
     }
 
-    // Restore admin session
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -199,13 +203,13 @@ const SuperAdmin = () => {
 
     if (!profileError && !lojaError) {
       toast({ title: "Lojista cadastrado com sucesso!" });
+      setShowAddLojista(false);
+      setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
+      fetchLojistas();
+      fetchStats();
     }
 
-    setShowAddLojista(false);
-    setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
     setSavingLojista(false);
-    fetchLojistas();
-    fetchStats();
   };
 
   const handleEditLojista = async () => {
