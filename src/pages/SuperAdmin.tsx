@@ -233,14 +233,13 @@ const SuperAdmin = () => {
     fetchLojistas();
   };
 
-  const toggleStatus = async (id: string, currentStatus: string | null, tipo: string) => {
-    setProcessing(id);
+  const toggleLojaStatus = async (lojaId: string, currentStatus: string | null) => {
+    setProcessing(lojaId);
     const newStatus = currentStatus === "inativo" ? "ativo" : "inativo";
-    await supabase.from("profiles").update({ status: newStatus }).eq("id", id);
-    toast({ title: `${tipo} ${newStatus === "ativo" ? "ativado" : "desativado"}!` });
+    await supabase.from("lojas").update({ status: newStatus }).eq("id", lojaId);
+    toast({ title: `Lojista ${newStatus === "ativo" ? "ativado" : "desativado"}!` });
     setProcessing(null);
     fetchLojistas();
-    fetchClientes();
     fetchStats();
   };
 
