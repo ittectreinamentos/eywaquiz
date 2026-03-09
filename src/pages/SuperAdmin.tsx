@@ -30,10 +30,16 @@ interface Profile {
   cpf: string | null;
   telefone: string | null;
   role: string | null;
-  cidade: string | null;
-  status: string | null;
-  created_at: string | null;
-  loja_id: string | null;
+}
+
+interface LojistaWithLoja extends Profile {
+  loja?: {
+    id: string;
+    nome: string | null;
+    cidade: string | null;
+    status: string | null;
+    criado_em: string | null;
+  } | null;
 }
 
 interface DashboardStats {
@@ -51,9 +57,9 @@ const SuperAdmin = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Lojistas
-  const [lojistas, setLojistas] = useState<Profile[]>([]);
+  const [lojistas, setLojistas] = useState<LojistaWithLoja[]>([]);
   const [showAddLojista, setShowAddLojista] = useState(false);
-  const [showEditLojista, setShowEditLojista] = useState<Profile | null>(null);
+  const [showEditLojista, setShowEditLojista] = useState<LojistaWithLoja | null>(null);
   const [lojistaForm, setLojistaForm] = useState({ nome: "", cidade: "", email: "", senha: "" });
   const [editForm, setEditForm] = useState({ nome: "", cidade: "" });
   const [savingLojista, setSavingLojista] = useState(false);
@@ -94,24 +100,28 @@ const SuperAdmin = () => {
   const fetchLojistas = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
-      .eq("role", "lojista")
-      .order("created_at", { ascending: false });
-    if (data) setLojistas(data as Profile[]);
+      .select("id, nome, email, cpf, telefone, role, lojas:lojas!lojas_profile_id_fkey(id, nome, cidade, status, criado_em)")
+      .eq("role", "lojista");
+    if (data) {
+      const mapped = data.map((d: any) => ({
+        ...d,
+        loja: Array.isArray(d.lojas) ? d.lojas[0] ?? null : d.lojas ?? null,
+      }));
+      setLojistas(mapped as LojistaWithLoja[]);
+    }
   };
 
   const fetchClientes = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
-      .eq("role", "cliente")
-      .order("created_at", { ascending: false });
+      .select("id, nome, email, cpf, telefone, role")
+      .eq("role", "cliente");
     if (data) setClientes(data as Profile[]);
   };
 
   const fetchStats = async () => {
     const [lojRes, cliRes, resgRes] = await Promise.all([
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "lojista").neq("status", "inativo"),
+      supabase.from("lojas").select("id", { count: "exact", head: true }).neq("status", "inativo"),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "cliente"),
       supabase.from("resgates").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     ]);
@@ -173,9 +183,7 @@ const SuperAdmin = () => {
       id: userId,
       nome: lojistaForm.nome,
       email: lojistaForm.email,
-      cidade: lojistaForm.cidade,
       role: "lojista",
-      status: "ativo",
     });
 
     if (profileError) {
@@ -184,8 +192,8 @@ const SuperAdmin = () => {
     }
 
     const { error: lojaError } = await supabase.from("lojas").insert({
+      profile_id: userId,
       nome: lojistaForm.nome,
-      owner_id: userId,
       cidade: lojistaForm.cidade,
     });
 
@@ -215,21 +223,23 @@ const SuperAdmin = () => {
   const handleEditLojista = async () => {
     if (!showEditLojista) return;
     setSavingLojista(true);
-    await supabase.from("profiles").update({ nome: editForm.nome, cidade: editForm.cidade }).eq("id", showEditLojista.id);
+    await supabase.from("profiles").update({ nome: editForm.nome }).eq("id", showEditLojista.id);
+    if (showEditLojista.loja?.id) {
+      await supabase.from("lojas").update({ nome: editForm.nome, cidade: editForm.cidade }).eq("id", showEditLojista.loja.id);
+    }
     toast({ title: "Lojista atualizado!" });
     setShowEditLojista(null);
     setSavingLojista(false);
     fetchLojistas();
   };
 
-  const toggleStatus = async (id: string, currentStatus: string | null, tipo: string) => {
-    setProcessing(id);
+  const toggleLojaStatus = async (lojaId: string, currentStatus: string | null) => {
+    setProcessing(lojaId);
     const newStatus = currentStatus === "inativo" ? "ativo" : "inativo";
-    await supabase.from("profiles").update({ status: newStatus }).eq("id", id);
-    toast({ title: `${tipo} ${newStatus === "ativo" ? "ativado" : "desativado"}!` });
+    await supabase.from("lojas").update({ status: newStatus }).eq("id", lojaId);
+    toast({ title: `Lojista ${newStatus === "ativo" ? "ativado" : "desativado"}!` });
     setProcessing(null);
     fetchLojistas();
-    fetchClientes();
     fetchStats();
   };
 
@@ -239,7 +249,7 @@ const SuperAdmin = () => {
   };
 
   const filteredClientes = filtroLoja
-    ? clientes.filter((c) => c.loja_id === filtroLoja || (c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase())))
+    ? clientes.filter((c) => c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase()))
     : clientes;
 
   if (!authChecked || !adminProfile) {
@@ -330,24 +340,26 @@ const SuperAdmin = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <p className="text-foreground text-xs font-semibold truncate">{l.nome || "—"}</p>
-                          <Badge variant={l.status === "inativo" ? "destructive" : "default"} className="text-[9px] px-1.5 py-0">
-                            {l.status || "ativo"}
+                          <Badge variant={l.loja?.status === "inativo" ? "destructive" : "default"} className="text-[9px] px-1.5 py-0">
+                            {l.loja?.status || "ativo"}
                           </Badge>
                         </div>
-                        <p className="text-muted-foreground text-[10px]">{l.cidade || "—"} • {l.email}</p>
+                        <p className="text-muted-foreground text-[10px]">{l.loja?.cidade || "—"} • {l.email}</p>
                         <p className="text-muted-foreground text-[10px]">
-                          Desde {l.created_at ? new Date(l.created_at).toLocaleDateString("pt-BR") : "—"}
+                          Desde {l.loja?.criado_em ? new Date(l.loja.criado_em).toLocaleDateString("pt-BR") : "—"}
                         </p>
                       </div>
                       <div className="flex gap-1 shrink-0 ml-2">
                         <Button size="icon" variant="ghost" className="h-7 w-7" disabled={processing === l.id}
-                          onClick={() => { setShowEditLojista(l); setEditForm({ nome: l.nome || "", cidade: l.cidade || "" }); }}>
+                          onClick={() => { setShowEditLojista(l); setEditForm({ nome: l.nome || "", cidade: l.loja?.cidade || "" }); }}>
                           <Pencil className="h-3 w-3 text-muted-foreground" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" disabled={processing === l.id}
-                          onClick={() => toggleStatus(l.id, l.status, "Lojista")}>
-                          {processing === l.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className={`h-3 w-3 ${l.status === "inativo" ? "text-secondary" : "text-destructive"}`} />}
-                        </Button>
+                        {l.loja?.id && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={processing === l.loja.id}
+                            onClick={() => toggleLojaStatus(l.loja!.id, l.loja!.status)}>
+                            {processing === l.loja.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className={`h-3 w-3 ${l.loja.status === "inativo" ? "text-secondary" : "text-destructive"}`} />}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -384,8 +396,6 @@ const SuperAdmin = () => {
                       <TableHead className="text-muted-foreground text-[10px]">Nome</TableHead>
                       <TableHead className="text-muted-foreground text-[10px]">Email</TableHead>
                       <TableHead className="text-muted-foreground text-[10px]">CPF</TableHead>
-                      <TableHead className="text-muted-foreground text-[10px] text-center">Status</TableHead>
-                      <TableHead className="text-muted-foreground text-[10px] text-center">Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -394,17 +404,6 @@ const SuperAdmin = () => {
                         <TableCell className="text-foreground text-xs py-2">{c.nome || "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-[10px] py-2">{c.email || "—"}</TableCell>
                         <TableCell className="text-muted-foreground text-[10px] py-2">{c.cpf || "—"}</TableCell>
-                        <TableCell className="text-center py-2">
-                          <Badge variant={c.status === "inativo" ? "destructive" : "default"} className="text-[9px] px-1.5 py-0">
-                            {c.status || "ativo"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center py-2">
-                          <Button size="icon" variant="ghost" className="h-6 w-6" disabled={processing === c.id}
-                            onClick={() => toggleStatus(c.id, c.status, "Cliente")}>
-                            {processing === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className={`h-3 w-3 ${c.status === "inativo" ? "text-secondary" : "text-destructive"}`} />}
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
