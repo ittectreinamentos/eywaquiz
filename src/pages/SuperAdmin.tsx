@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+
 
 interface Profile {
   id: string;
@@ -46,7 +46,8 @@ interface DashboardStats {
 const SuperAdmin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile, signOut, loading: authLoading } = useAuth();
+  const [adminProfile, setAdminProfile] = useState<Profile | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Lojistas
@@ -66,13 +67,29 @@ const SuperAdmin = () => {
 
   const [processing, setProcessing] = useState<string | null>(null);
 
-  // Route protection — wait for profile to load before checking role
+  // Simple direct auth check
   useEffect(() => {
-    if (authLoading) return;
-    if (!profile || profile.role !== "admin") {
-      navigate("/login", { replace: true });
-    }
-  }, [authLoading, profile, navigate]);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      console.log("admin check - profile:", profile, "error:", error);
+
+      if (!profile || profile.role !== "admin") {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setAdminProfile(profile as Profile);
+      setAuthChecked(true);
+    });
+  }, [navigate]);
 
   const fetchLojistas = async () => {
     const { data } = await supabase
@@ -114,12 +131,12 @@ const SuperAdmin = () => {
   };
 
   useEffect(() => {
-    if (profile?.role === "admin") {
+    if (authChecked && adminProfile) {
       fetchLojistas();
       fetchClientes();
       fetchStats();
     }
-  }, [profile]);
+  }, [authChecked, adminProfile]);
 
   const handleAddLojista = async () => {
     if (!lojistaForm.nome || !lojistaForm.email || !lojistaForm.senha) {
@@ -180,7 +197,7 @@ const SuperAdmin = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
+    await supabase.auth.signOut();
     navigate("/login");
   };
 
@@ -188,7 +205,7 @@ const SuperAdmin = () => {
     ? clientes.filter((c) => c.loja_id === filtroLoja || (c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase())))
     : clientes;
 
-  if (authLoading || !profile || profile.role !== "admin") {
+  if (!authChecked || !adminProfile) {
     return (
       <div className="min-h-screen bg-background bg-gradient-dark flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -206,7 +223,7 @@ const SuperAdmin = () => {
           </div>
           <div className="flex-1">
             <h1 className="text-foreground text-sm font-display font-bold tracking-wide">SUPER ADMIN</h1>
-            <p className="text-muted-foreground text-[10px]">{profile.nome || "Admin"} • EYWA Platform</p>
+            <p className="text-muted-foreground text-[10px]">{adminProfile.nome || "Admin"} • EYWA Platform</p>
           </div>
           <Button size="sm" variant="ghost" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
             <LogOut className="h-4 w-4" />
