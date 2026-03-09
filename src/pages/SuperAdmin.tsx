@@ -66,9 +66,10 @@ const SuperAdmin = () => {
 
   const [processing, setProcessing] = useState<string | null>(null);
 
-  // Route protection
+  // Route protection — wait for profile to load before checking role
   useEffect(() => {
-    if (!authLoading && (!profile || profile.role !== "admin")) {
+    if (authLoading) return;
+    if (!profile || profile.role !== "admin") {
       navigate("/login", { replace: true });
     }
   }, [authLoading, profile, navigate]);
