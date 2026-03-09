@@ -576,4 +576,4 @@ const LojistaDashboard = () => {
   );
 };
 
-export default Admin;
+export default LojistaDashboard;
