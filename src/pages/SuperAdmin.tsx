@@ -223,7 +223,10 @@ const SuperAdmin = () => {
   const handleEditLojista = async () => {
     if (!showEditLojista) return;
     setSavingLojista(true);
-    await supabase.from("profiles").update({ nome: editForm.nome, cidade: editForm.cidade }).eq("id", showEditLojista.id);
+    await supabase.from("profiles").update({ nome: editForm.nome }).eq("id", showEditLojista.id);
+    if (showEditLojista.loja?.id) {
+      await supabase.from("lojas").update({ nome: editForm.nome, cidade: editForm.cidade }).eq("id", showEditLojista.loja.id);
+    }
     toast({ title: "Lojista atualizado!" });
     setShowEditLojista(null);
     setSavingLojista(false);
