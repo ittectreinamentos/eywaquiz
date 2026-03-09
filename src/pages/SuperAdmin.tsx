@@ -223,7 +223,7 @@ const SuperAdmin = () => {
           </div>
           <div className="flex-1">
             <h1 className="text-foreground text-sm font-display font-bold tracking-wide">SUPER ADMIN</h1>
-            <p className="text-muted-foreground text-[10px]">{profile.nome || "Admin"} • EYWA Platform</p>
+            <p className="text-muted-foreground text-[10px]">{adminProfile.nome || "Admin"} • EYWA Platform</p>
           </div>
           <Button size="sm" variant="ghost" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
             <LogOut className="h-4 w-4" />
