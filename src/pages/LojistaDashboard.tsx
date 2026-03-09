@@ -120,15 +120,22 @@ const MetricCard = ({
   </Card>
 );
 
-const Admin = () => {
+const LojistaDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [resgates, setResgates] = useState<Resgate[]>([]);
   const [showRejectDialog, setShowRejectDialog] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Route protection - only lojista can access
+  useEffect(() => {
+    if (!authLoading && (!profile || profile.role !== "lojista")) {
+      navigate("/login", { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   // Fetch resgates from Supabase
   const fetchResgates = async () => {
