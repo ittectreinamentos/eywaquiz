@@ -57,9 +57,9 @@ const SuperAdmin = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Lojistas
-  const [lojistas, setLojistas] = useState<Profile[]>([]);
+  const [lojistas, setLojistas] = useState<LojistaWithLoja[]>([]);
   const [showAddLojista, setShowAddLojista] = useState(false);
-  const [showEditLojista, setShowEditLojista] = useState<Profile | null>(null);
+  const [showEditLojista, setShowEditLojista] = useState<LojistaWithLoja | null>(null);
   const [lojistaForm, setLojistaForm] = useState({ nome: "", cidade: "", email: "", senha: "" });
   const [editForm, setEditForm] = useState({ nome: "", cidade: "" });
   const [savingLojista, setSavingLojista] = useState(false);
