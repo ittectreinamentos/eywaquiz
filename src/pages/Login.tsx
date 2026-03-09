@@ -22,7 +22,8 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user && profile) {
-      if (profile.role === "lojista") navigate("/admin", { replace: true });
+      if (profile.role === "admin") navigate("/admin", { replace: true });
+      else if (profile.role === "lojista") navigate("/lojista", { replace: true });
       else navigate("/experience", { replace: true });
     }
   }, [authLoading, user, profile, navigate]);

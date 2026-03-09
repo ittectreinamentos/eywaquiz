@@ -120,15 +120,22 @@ const MetricCard = ({
   </Card>
 );
 
-const Admin = () => {
+const LojistaDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [resgates, setResgates] = useState<Resgate[]>([]);
   const [showRejectDialog, setShowRejectDialog] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Route protection - only lojista can access
+  useEffect(() => {
+    if (!authLoading && (!profile || profile.role !== "lojista")) {
+      navigate("/login", { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   // Fetch resgates from Supabase
   const fetchResgates = async () => {
@@ -190,6 +197,14 @@ const Admin = () => {
     navigate("/login");
   };
 
+  if (authLoading || !profile || profile.role !== "lojista") {
+    return (
+      <div className="min-h-screen bg-background bg-gradient-dark flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background bg-gradient-dark">
       {/* Header */}
@@ -199,7 +214,7 @@ const Admin = () => {
             <ArrowLeft className="h-4 w-4 text-foreground" />
           </button>
           <div className="flex-1">
-            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">PAINEL ADMIN</h1>
+            <h1 className="text-foreground text-sm font-display font-bold tracking-wide">PAINEL LOJISTA</h1>
             <p className="text-muted-foreground text-[10px]">
               {profile?.nome || "Lojista"} • EYWA Analytics
             </p>
@@ -569,4 +584,4 @@ const Admin = () => {
   );
 };
 
-export default Admin;
+export default LojistaDashboard;
