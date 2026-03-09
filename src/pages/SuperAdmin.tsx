@@ -101,34 +101,22 @@ const SuperAdmin = () => {
     const { data, error } = await supabase
       .from("lojas")
       .select(`
-        id,
-        nome,
-        cidade,
-        status,
-        criado_em,
-        profile_id,
-        profiles!profile_id (
-          id,
-          nome,
-          email,
-          cpf,
-          telefone,
-          role
-        )
+        id, nome, cidade, status, criado_em,
+        profiles!profile_id ( email, role )
       `);
 
     console.log("lojistas:", data, "erro:", error);
 
     if (data) {
       const mapped = data.map((d: any) => {
-        const profile = d.profiles || {};
+        const prof = d.profiles || {};
         return {
-          id: profile.id || d.profile_id,
-          nome: profile.nome || d.nome,
-          email: profile.email || null,
-          cpf: profile.cpf || null,
-          telefone: profile.telefone || null,
-          role: profile.role || "lojista",
+          id: d.id,
+          nome: d.nome,
+          email: prof.email || null,
+          cpf: null,
+          telefone: null,
+          role: prof.role || "lojista",
           loja: {
             id: d.id,
             nome: d.nome,
