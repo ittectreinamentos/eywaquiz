@@ -131,12 +131,12 @@ const SuperAdmin = () => {
   };
 
   useEffect(() => {
-    if (profile?.role === "admin") {
+    if (authChecked && adminProfile) {
       fetchLojistas();
       fetchClientes();
       fetchStats();
     }
-  }, [profile]);
+  }, [authChecked, adminProfile]);
 
   const handleAddLojista = async () => {
     if (!lojistaForm.nome || !lojistaForm.email || !lojistaForm.senha) {
