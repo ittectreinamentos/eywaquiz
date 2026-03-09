@@ -28,48 +28,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialLoadDone = useState({ current: false })[0];
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, nome, email, cpf, telefone, role")
       .eq("id", userId)
       .single();
-    setProfile(data);
-    return data;
+
+    setProfile(data ?? null);
+    return data ?? null;
   };
 
   useEffect(() => {
-    // 1. Initial session load
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+    let mounted = true;
+
+    const syncAuthState = async (nextSession: Session | null) => {
+      if (!mounted) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (nextSession?.user) {
+        await fetchProfile(nextSession.user.id);
+      } else {
+        setProfile(null);
       }
-      initialLoadDone.current = true;
-      setLoading(false);
+
+      if (mounted) setLoading(false);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      void syncAuthState(nextSession);
     });
 
-    // 2. Listen for subsequent auth changes (sign in, sign out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-        // Only update loading after initial load is done
-        if (initialLoadDone.current) {
-          setLoading(false);
-        }
-      }
-    );
+    const bootstrap = async () => {
+      setLoading(true);
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
 
-    return () => subscription.unsubscribe();
+      if (!mounted) return;
+
+      await syncAuthState(currentSession);
+    };
+
+    void bootstrap();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
