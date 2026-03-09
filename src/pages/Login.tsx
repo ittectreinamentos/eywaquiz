@@ -34,7 +34,7 @@ const Login = () => {
       return;
     }
 
-    // Fetch role directly after login
+    // Always fetch role from profiles — ignore the tab selection
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
@@ -45,9 +45,10 @@ const Login = () => {
 
     toast({ title: "Login realizado com sucesso!" });
 
-    if (profile?.role === "admin") {
+    const userRole = profile?.role;
+    if (userRole === "admin") {
       navigate("/admin", { replace: true });
-    } else if (profile?.role === "lojista") {
+    } else if (userRole === "lojista") {
       navigate("/lojista", { replace: true });
     } else {
       navigate("/experience", { replace: true });

@@ -101,20 +101,8 @@ const SuperAdmin = () => {
     const { data, error } = await supabase
       .from("lojas")
       .select(`
-        id,
-        nome,
-        cidade,
-        status,
-        criado_em,
-        profile_id,
-        profiles!profile_id (
-          id,
-          nome,
-          email,
-          cpf,
-          telefone,
-          role
-        )
+        id, nome, cidade, status, criado_em,
+        profiles!profile_id ( email, role )
       `);
 
     console.log("lojistas:", data, "erro:", error);
