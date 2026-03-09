@@ -249,7 +249,7 @@ const SuperAdmin = () => {
   };
 
   const filteredClientes = filtroLoja
-    ? clientes.filter((c) => c.loja_id === filtroLoja || (c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase())))
+    ? clientes.filter((c) => c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase()))
     : clientes;
 
   if (!authChecked || !adminProfile) {
