@@ -197,7 +197,7 @@ const SuperAdmin = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
+    await supabase.auth.signOut();
     navigate("/login");
   };
 
@@ -205,7 +205,7 @@ const SuperAdmin = () => {
     ? clientes.filter((c) => c.loja_id === filtroLoja || (c.nome && c.nome.toLowerCase().includes(filtroLoja.toLowerCase())))
     : clientes;
 
-  if (authLoading || !profile || profile.role !== "admin") {
+  if (!authChecked || !adminProfile) {
     return (
       <div className="min-h-screen bg-background bg-gradient-dark flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
