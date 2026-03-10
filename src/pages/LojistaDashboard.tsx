@@ -249,6 +249,9 @@ const LojistaDashboard = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="quiz" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <HelpCircle className="h-3 w-3 mr-1" />Quiz
+            </TabsTrigger>
             <TabsTrigger value="reports" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <FileText className="h-3 w-3 mr-1" />Relatórios
             </TabsTrigger>
