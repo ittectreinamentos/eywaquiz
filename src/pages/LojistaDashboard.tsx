@@ -15,6 +15,7 @@ import {
   FileText, ArrowLeft, Bell, Check, X, Loader2, HelpCircle,
 } from "lucide-react";
 import QuizManager from "@/components/QuizManager";
+import BannerManager from "@/components/BannerManager";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
