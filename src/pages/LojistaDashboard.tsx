@@ -15,6 +15,7 @@ import {
   FileText, ArrowLeft, Bell, Check, X, Loader2, HelpCircle,
 } from "lucide-react";
 import QuizManager from "@/components/QuizManager";
+import BannerManager from "@/components/BannerManager";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -249,6 +250,9 @@ const LojistaDashboard = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="produtos" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <ShoppingBag className="h-3 w-3 mr-1" />Produtos
+            </TabsTrigger>
             <TabsTrigger value="quiz" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <HelpCircle className="h-3 w-3 mr-1" />Quiz
             </TabsTrigger>
@@ -433,6 +437,11 @@ const LojistaDashboard = () => {
             </div>
           </TabsContent>
 
+
+          {/* ===== PRODUTOS TAB ===== */}
+          <TabsContent value="produtos" className="mt-4 pb-20">
+            <BannerManager />
+          </TabsContent>
 
           {/* ===== QUIZ TAB ===== */}
           <TabsContent value="quiz" className="mt-4 pb-20">
