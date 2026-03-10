@@ -6,7 +6,7 @@ interface BakeryTransitionProps {
   onStart: () => void;
 }
 
-const BakeryTransition = ({ onStart }: BakeryTransitionProps) => {
+const BakeryTransition = ({ lojaNome = "Padaria Pão Dourado", onStart }: BakeryTransitionProps) => {
   return (
     <motion.div
       className="fixed inset-0 bg-background bg-gradient-warm flex flex-col items-center justify-center overflow-hidden px-6"
