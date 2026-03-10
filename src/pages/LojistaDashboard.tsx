@@ -12,8 +12,9 @@ import {
 } from "recharts";
 import {
   Users, TrendingUp, Gift, Star, Clock, ShoppingBag, BarChart3,
-  FileText, ArrowLeft, Bell, Check, X, Loader2,
+  FileText, ArrowLeft, Bell, Check, X, Loader2, HelpCircle,
 } from "lucide-react";
+import QuizManager from "@/components/QuizManager";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -248,6 +249,9 @@ const LojistaDashboard = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="quiz" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <HelpCircle className="h-3 w-3 mr-1" />Quiz
+            </TabsTrigger>
             <TabsTrigger value="reports" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <FileText className="h-3 w-3 mr-1" />Relatórios
             </TabsTrigger>
@@ -427,6 +431,12 @@ const LojistaDashboard = () => {
                   ))
               )}
             </div>
+          </TabsContent>
+
+
+          {/* ===== QUIZ TAB ===== */}
+          <TabsContent value="quiz" className="mt-4 pb-20">
+            <QuizManager />
           </TabsContent>
 
           {/* ===== REPORTS TAB ===== */}
