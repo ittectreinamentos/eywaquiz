@@ -1,18 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import EywaEntry from "@/components/EywaEntry";
 import BakeryTransition from "@/components/BakeryTransition";
-import QuizScreen from "@/components/QuizScreen";
+import ClientQuiz from "@/components/ClientQuiz";
 import ResultScreen from "@/components/ResultScreen";
 import RewardsScreen from "@/components/RewardsScreen";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import type { LojaInfo } from "@/components/ClientQuiz";
 
-type Screen = "entry" | "bakery" | "quiz" | "result" | "rewards";
+type Screen = "loading" | "entry" | "bakery" | "quiz" | "result" | "rewards";
 
 const Index = () => {
-  const navigate = useNavigate();
-  const [screen, setScreen] = useState<Screen>("entry");
+  const { user } = useAuth();
+  const [screen, setScreen] = useState<Screen>("loading");
   const [score, setScore] = useState(0);
+  const [loja, setLoja] = useState<LojaInfo | null>(null);
+  const [quizId, setQuizId] = useState<string | null>(null);
+
+  // Load first active quiz + its loja
+  useEffect(() => {
+    const load = async () => {
+      const { data: quiz } = await supabase
+        .from("quizzes")
+        .select("id, loja_id, titulo, status")
+        .eq("status", "ativo")
+        .limit(1)
+        .maybeSingle();
+
+      if (quiz) {
+        setQuizId(quiz.id);
+        const { data: lojaData } = await supabase
+          .from("lojas")
+          .select("id, nome")
+          .eq("id", quiz.loja_id)
+          .maybeSingle();
+
+        if (lojaData) setLoja(lojaData);
+      }
+      setScreen("entry");
+    };
+    load();
+  }, []);
+
+  const handleQuizComplete = async (finalScore: number) => {
+    setScore(finalScore);
+    setScreen("result");
+
+    // Save participacao and pontuacao
+    if (user && loja) {
+      const today = new Date().toISOString().split("T")[0];
+      try {
+        await supabase.from("participacoes").insert({
+          cliente_id: user.id,
+          loja_id: loja.id,
+          data: today,
+        });
+        await supabase.from("pontuacoes").insert({
+          cliente_id: user.id,
+          loja_id: loja.id,
+          pontos: finalScore,
+          data: today,
+        });
+      } catch (e) {
+        console.error("Erro ao salvar participação/pontuação:", e);
+      }
+    }
+  };
+
+  if (screen === "loading") {
+    return (
+      <div className="min-h-screen bg-background bg-gradient-dark flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -21,16 +84,25 @@ const Index = () => {
           <EywaEntry key="entry" onComplete={() => setScreen("bakery")} />
         )}
         {screen === "bakery" && (
-          <BakeryTransition key="bakery" onStart={() => setScreen("quiz")} />
-        )}
-        {screen === "quiz" && (
-          <QuizScreen
-            key="quiz"
-            onComplete={(s) => {
-              setScore(s);
-              setScreen("result");
-            }}
+          <BakeryTransition
+            key="bakery"
+            lojaNome={loja?.nome || "Loja Parceira"}
+            onStart={() => setScreen("quiz")}
           />
+        )}
+        {screen === "quiz" && loja && quizId && (
+          <ClientQuiz
+            key="quiz"
+            loja={loja}
+            quizId={quizId}
+            onComplete={handleQuizComplete}
+          />
+        )}
+        {screen === "quiz" && (!loja || !quizId) && (
+          <div className="fixed inset-0 bg-background bg-gradient-dark flex flex-col items-center justify-center px-6">
+            <p className="text-3xl mb-4">📭</p>
+            <p className="text-foreground text-sm text-center">Nenhum quiz ativo disponível no momento.</p>
+          </div>
         )}
         {screen === "result" && (
           <ResultScreen
