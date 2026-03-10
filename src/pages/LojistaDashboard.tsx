@@ -12,8 +12,9 @@ import {
 } from "recharts";
 import {
   Users, TrendingUp, Gift, Star, Clock, ShoppingBag, BarChart3,
-  FileText, ArrowLeft, Bell, Check, X, Loader2,
+  FileText, ArrowLeft, Bell, Check, X, Loader2, HelpCircle,
 } from "lucide-react";
+import QuizManager from "@/components/QuizManager";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
