@@ -438,6 +438,11 @@ const LojistaDashboard = () => {
           </TabsContent>
 
 
+          {/* ===== PRODUTOS TAB ===== */}
+          <TabsContent value="produtos" className="mt-4 pb-20">
+            <BannerManager />
+          </TabsContent>
+
           {/* ===== QUIZ TAB ===== */}
           <TabsContent value="quiz" className="mt-4 pb-20">
             <QuizManager />
