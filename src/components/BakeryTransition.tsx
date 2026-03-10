@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import Particles from "./Particles";
 
 interface BakeryTransitionProps {
+  lojaNome?: string;
   onStart: () => void;
 }
 
