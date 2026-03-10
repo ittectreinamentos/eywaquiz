@@ -433,6 +433,12 @@ const LojistaDashboard = () => {
             </div>
           </TabsContent>
 
+
+          {/* ===== QUIZ TAB ===== */}
+          <TabsContent value="quiz" className="mt-4 pb-20">
+            <QuizManager />
+          </TabsContent>
+
           {/* ===== REPORTS TAB ===== */}
           <TabsContent value="reports" className="mt-4 pb-20 space-y-4">
             <Card className="bg-card border-border">
