@@ -47,7 +47,7 @@ const BakeryTransition = ({ lojaNome = "Padaria Pão Dourado", onStart }: Bakery
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
         >
-          Padaria Pão Dourado
+          {lojaNome}
         </motion.h2>
 
         <motion.p
