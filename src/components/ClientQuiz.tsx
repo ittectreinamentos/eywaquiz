@@ -20,10 +20,11 @@ interface Pergunta {
   respostas: Resposta[];
 }
 
-interface Produto {
+interface Banner {
   emoji: string;
-  nome: string;
-  preco: string;
+  titulo: string;
+  descricao: string | null;
+  preco: number | null;
 }
 
 export interface LojaInfo {
