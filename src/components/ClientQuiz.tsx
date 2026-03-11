@@ -39,6 +39,7 @@ interface ClientQuizProps {
 }
 
 const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
+  const { user } = useAuth();
   const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
   const [current, setCurrent] = useState(0);
   const [score, setScore] = useState(0);
@@ -46,7 +47,7 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const [discursivaText, setDiscursivaText] = useState("");
   const [loading, setLoading] = useState(true);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
 
   // Fetch perguntas + respostas for this quiz
   useEffect(() => {
