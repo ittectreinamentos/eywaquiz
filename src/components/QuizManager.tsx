@@ -446,6 +446,38 @@ const QuizManager = () => {
           </div>
         </>
       )}
+      {/* Create Quiz Dialog */}
+      <Dialog open={showCreateQuiz} onOpenChange={setShowCreateQuiz}>
+        <DialogContent className="bg-card border-border max-w-[90vw] rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-display text-sm">Criar Quiz</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">Defina o título e status do novo quiz.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Título do quiz *"
+              value={newQuizForm.titulo}
+              onChange={(e) => setNewQuizForm((f) => ({ ...f, titulo: e.target.value }))}
+              className="bg-muted border-border text-foreground text-xs"
+            />
+            <Select value={newQuizForm.status} onValueChange={(v) => setNewQuizForm((f) => ({ ...f, status: v }))}>
+              <SelectTrigger className="bg-muted border-border text-foreground text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="inativo">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowCreateQuiz(false)} className="flex-1 text-xs border-border">Cancelar</Button>
+            <Button onClick={handleCreateQuiz} disabled={creatingQuiz} className="flex-1 text-xs font-display tracking-wider">
+              {creatingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : "CRIAR"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
