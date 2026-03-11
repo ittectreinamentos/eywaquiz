@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import Particles from "./Particles";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Resposta {
   id: string;
@@ -19,10 +20,11 @@ interface Pergunta {
   respostas: Resposta[];
 }
 
-interface Produto {
+interface Banner {
   emoji: string;
-  nome: string;
-  preco: string;
+  titulo: string;
+  descricao: string | null;
+  preco: number | null;
 }
 
 export interface LojaInfo {
@@ -37,6 +39,7 @@ interface ClientQuizProps {
 }
 
 const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
+  const { user } = useAuth();
   const [perguntas, setPerguntas] = useState<Pergunta[]>([]);
   const [current, setCurrent] = useState(0);
   const [score, setScore] = useState(0);
@@ -44,7 +47,7 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const [discursivaText, setDiscursivaText] = useState("");
   const [loading, setLoading] = useState(true);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
 
   // Fetch perguntas + respostas for this quiz
   useEffect(() => {
@@ -81,38 +84,31 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
     fetch();
   }, [quizId]);
 
-  // Fetch produtos (recompensas from this loja's lojista)
+  // Fetch banners ativos da loja via profile.loja_id
   useEffect(() => {
-    const fetchProdutos = async () => {
-      // Get lojista (profile_id) for this loja
-      const { data: lojaData } = await supabase
-        .from("lojas")
-        .select("profile_id")
-        .eq("id", loja.id)
+    const fetchBanners = async () => {
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("loja_id")
+        .eq("id", user.id)
         .maybeSingle();
 
-      if (!lojaData) return;
+      if (!profile?.loja_id) return;
 
-      const { data: recompensas } = await supabase
-        .from("recompensas")
-        .select("titulo, pontos_necessarios")
-        .eq("lojista_id", lojaData.profile_id)
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("banners")
+        .select("emoji, titulo, descricao, preco")
+        .eq("loja_id", profile.loja_id)
         .eq("ativo", true)
-        .limit(3);
+        .gte("data_fim", today);
 
-      if (recompensas) {
-        const emojis = ["🥐", "☕", "🧀", "🍰", "🎂", "🎁"];
-        setProdutos(
-          recompensas.map((r, i) => ({
-            emoji: emojis[i % emojis.length],
-            nome: r.titulo,
-            preco: `${r.pontos_necessarios} pts`,
-          }))
-        );
-      }
+      if (data) setBanners(data);
     };
-    fetchProdutos();
-  }, [loja.id]);
+    fetchBanners();
+  }, [user, loja.id]);
 
   if (loading) {
     return (
@@ -317,26 +313,33 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
         </AnimatePresence>
       </div>
 
-      {/* Fixed footer - product banner */}
+      {/* Fixed footer - banners */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-card/95 backdrop-blur-md border-t border-border px-4 pt-3 pb-4">
         <p className="text-primary text-[10px] font-display tracking-wider mb-2">
           📢 DESTAQUE DA {loja.nome.toUpperCase()} HOJE
         </p>
-        {produtos.length > 0 ? (
+        {banners.length > 0 ? (
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {produtos.map((p, i) => (
+            {banners.map((b, i) => (
               <div
                 key={i}
-                className="flex-shrink-0 bg-muted rounded-md p-2 min-w-[110px] border border-border"
+                className="flex-shrink-0 bg-muted rounded-md p-2 min-w-[120px] border border-border"
               >
-                <span className="text-2xl">{p.emoji}</span>
-                <p className="text-foreground text-xs font-semibold mt-1">{p.nome}</p>
-                <p className="text-primary text-xs font-bold mt-0.5">{p.preco}</p>
+                <span className="text-2xl">{b.emoji || "🎁"}</span>
+                <p className="text-foreground text-xs font-semibold mt-1">{b.titulo}</p>
+                {b.descricao && (
+                  <p className="text-muted-foreground text-[10px] mt-0.5 line-clamp-2">{b.descricao}</p>
+                )}
+                {b.preco != null && (
+                  <p className="text-accent text-xs font-bold mt-0.5" style={{ color: "hsl(25, 95%, 53%)" }}>
+                    R$ {Number(b.preco).toFixed(2)}
+                  </p>
+                )}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-muted-foreground text-[10px]">Confira nossas recompensas!</p>
+          <p className="text-muted-foreground text-[10px]">Confira nossos destaques!</p>
         )}
         <p className="text-muted-foreground text-[10px] opacity-50 mt-2 text-center">
           Powered by EYWA • Experiência Gamificada Inteligente
