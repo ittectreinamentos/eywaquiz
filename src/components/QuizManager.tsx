@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,34 +59,64 @@ const QuizManager = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [existingPerguntas, setExistingPerguntas] = useState<PerguntaDB[]>([]);
+  const [lojaId, setLojaId] = useState<string | null>(null);
+
+  // Create quiz modal
+  const [showCreateQuiz, setShowCreateQuiz] = useState(false);
+  const [newQuizForm, setNewQuizForm] = useState({ titulo: "", status: "ativo" });
+  const [creatingQuiz, setCreatingQuiz] = useState(false);
 
   // Fetch quizzes for this lojista's loja
-  useEffect(() => {
+  const fetchQuizzes = async () => {
     if (!user) return;
-    const fetchQuizzes = async () => {
-      // First get loja_id
-      const { data: loja } = await supabase
-        .from("lojas")
-        .select("id")
-        .eq("profile_id", user.id)
-        .maybeSingle();
+    const { data: loja } = await supabase
+      .from("lojas")
+      .select("id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
 
-      if (!loja) {
-        setLoading(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("quizzes")
-        .select("*")
-        .eq("loja_id", loja.id)
-        .order("id");
-
-      if (data) setQuizzes(data);
+    if (!loja) {
       setLoading(false);
-    };
+      return;
+    }
+
+    setLojaId(loja.id);
+
+    const { data } = await supabase
+      .from("quizzes")
+      .select("*")
+      .eq("loja_id", loja.id)
+      .order("id");
+
+    if (data) setQuizzes(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchQuizzes();
   }, [user]);
+
+  const handleCreateQuiz = async () => {
+    if (!newQuizForm.titulo.trim() || !lojaId) {
+      toast({ title: "Preencha o título do quiz", variant: "destructive" });
+      return;
+    }
+    setCreatingQuiz(true);
+    const { error } = await supabase.from("quizzes").insert({
+      titulo: newQuizForm.titulo,
+      status: newQuizForm.status,
+      loja_id: lojaId,
+    });
+    if (error) {
+      toast({ title: "Erro ao criar quiz", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Quiz criado com sucesso!" });
+      setShowCreateQuiz(false);
+      setNewQuizForm({ titulo: "", status: "ativo" });
+      await fetchQuizzes();
+    }
+    setCreatingQuiz(false);
+  };
 
   // Fetch existing perguntas when quiz selected
   useEffect(() => {
@@ -257,10 +288,15 @@ const QuizManager = () => {
 
   return (
     <div className="space-y-4">
-      {/* Quiz selector */}
+      {/* Quiz selector + create button */}
       <Card className="bg-card border-border">
         <CardContent className="p-4 space-y-3">
-          <Label className="text-foreground text-xs font-display">Selecione o Quiz</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-foreground text-xs font-display">Selecione o Quiz</Label>
+            <Button size="sm" onClick={() => setShowCreateQuiz(true)} className="text-[10px] font-display tracking-wider">
+              <Plus className="h-3 w-3 mr-1" />CRIAR QUIZ
+            </Button>
+          </div>
           {quizzes.length === 0 ? (
             <p className="text-muted-foreground text-xs">Nenhum quiz cadastrado para sua loja.</p>
           ) : (
@@ -410,6 +446,38 @@ const QuizManager = () => {
           </div>
         </>
       )}
+      {/* Create Quiz Dialog */}
+      <Dialog open={showCreateQuiz} onOpenChange={setShowCreateQuiz}>
+        <DialogContent className="bg-card border-border max-w-[90vw] rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-display text-sm">Criar Quiz</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">Defina o título e status do novo quiz.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Título do quiz *"
+              value={newQuizForm.titulo}
+              onChange={(e) => setNewQuizForm((f) => ({ ...f, titulo: e.target.value }))}
+              className="bg-muted border-border text-foreground text-xs"
+            />
+            <Select value={newQuizForm.status} onValueChange={(v) => setNewQuizForm((f) => ({ ...f, status: v }))}>
+              <SelectTrigger className="bg-muted border-border text-foreground text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="inativo">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowCreateQuiz(false)} className="flex-1 text-xs border-border">Cancelar</Button>
+            <Button onClick={handleCreateQuiz} disabled={creatingQuiz} className="flex-1 text-xs font-display tracking-wider">
+              {creatingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : "CRIAR"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

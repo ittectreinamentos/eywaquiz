@@ -19,30 +19,46 @@ const Index = () => {
   const [loja, setLoja] = useState<LojaInfo | null>(null);
   const [quizId, setQuizId] = useState<string | null>(null);
 
-  // Load first active quiz + its loja
+  // Load quiz via profile.loja_id
   useEffect(() => {
     const load = async () => {
-      const { data: quiz } = await supabase
-        .from("quizzes")
-        .select("id, loja_id, titulo, status")
-        .eq("status", "ativo")
-        .limit(1)
+      if (!user) {
+        setScreen("entry");
+        return;
+      }
+
+      // Step 1: get loja_id from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("loja_id")
+        .eq("id", user.id)
         .maybeSingle();
 
-      if (quiz) {
-        setQuizId(quiz.id);
-        const { data: lojaData } = await supabase
-          .from("lojas")
-          .select("id, nome")
-          .eq("id", quiz.loja_id)
-          .maybeSingle();
+      if (profile?.loja_id) {
+        // Step 2: get active quizzes for that loja
+        const { data: quizzes } = await supabase
+          .from("quizzes")
+          .select("id, loja_id, titulo, status")
+          .eq("loja_id", profile.loja_id)
+          .eq("status", "ativo")
+          .limit(1);
 
-        if (lojaData) setLoja(lojaData);
+        const quiz = quizzes?.[0];
+        if (quiz) {
+          setQuizId(quiz.id);
+          const { data: lojaData } = await supabase
+            .from("lojas")
+            .select("id, nome")
+            .eq("id", quiz.loja_id)
+            .maybeSingle();
+
+          if (lojaData) setLoja(lojaData);
+        }
       }
       setScreen("entry");
     };
     load();
-  }, []);
+  }, [user]);
 
   const handleQuizComplete = async (finalScore: number) => {
     setScore(finalScore);
