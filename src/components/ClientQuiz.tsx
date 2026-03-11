@@ -84,38 +84,31 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
     fetch();
   }, [quizId]);
 
-  // Fetch produtos (recompensas from this loja's lojista)
+  // Fetch banners ativos da loja via profile.loja_id
   useEffect(() => {
-    const fetchProdutos = async () => {
-      // Get lojista (profile_id) for this loja
-      const { data: lojaData } = await supabase
-        .from("lojas")
-        .select("profile_id")
-        .eq("id", loja.id)
+    const fetchBanners = async () => {
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("loja_id")
+        .eq("id", user.id)
         .maybeSingle();
 
-      if (!lojaData) return;
+      if (!profile?.loja_id) return;
 
-      const { data: recompensas } = await supabase
-        .from("recompensas")
-        .select("titulo, pontos_necessarios")
-        .eq("lojista_id", lojaData.profile_id)
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("banners")
+        .select("emoji, titulo, descricao, preco")
+        .eq("loja_id", profile.loja_id)
         .eq("ativo", true)
-        .limit(3);
+        .gte("data_fim", today);
 
-      if (recompensas) {
-        const emojis = ["🥐", "☕", "🧀", "🍰", "🎂", "🎁"];
-        setProdutos(
-          recompensas.map((r, i) => ({
-            emoji: emojis[i % emojis.length],
-            nome: r.titulo,
-            preco: `${r.pontos_necessarios} pts`,
-          }))
-        );
-      }
+      if (data) setBanners(data);
     };
-    fetchProdutos();
-  }, [loja.id]);
+    fetchBanners();
+  }, [user, loja.id]);
 
   if (loading) {
     return (
