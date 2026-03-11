@@ -313,26 +313,33 @@ const ClientQuiz = ({ loja, quizId, onComplete }: ClientQuizProps) => {
         </AnimatePresence>
       </div>
 
-      {/* Fixed footer - product banner */}
+      {/* Fixed footer - banners */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-card/95 backdrop-blur-md border-t border-border px-4 pt-3 pb-4">
         <p className="text-primary text-[10px] font-display tracking-wider mb-2">
           📢 DESTAQUE DA {loja.nome.toUpperCase()} HOJE
         </p>
-        {produtos.length > 0 ? (
+        {banners.length > 0 ? (
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {produtos.map((p, i) => (
+            {banners.map((b, i) => (
               <div
                 key={i}
-                className="flex-shrink-0 bg-muted rounded-md p-2 min-w-[110px] border border-border"
+                className="flex-shrink-0 bg-muted rounded-md p-2 min-w-[120px] border border-border"
               >
-                <span className="text-2xl">{p.emoji}</span>
-                <p className="text-foreground text-xs font-semibold mt-1">{p.nome}</p>
-                <p className="text-primary text-xs font-bold mt-0.5">{p.preco}</p>
+                <span className="text-2xl">{b.emoji || "🎁"}</span>
+                <p className="text-foreground text-xs font-semibold mt-1">{b.titulo}</p>
+                {b.descricao && (
+                  <p className="text-muted-foreground text-[10px] mt-0.5 line-clamp-2">{b.descricao}</p>
+                )}
+                {b.preco != null && (
+                  <p className="text-accent text-xs font-bold mt-0.5" style={{ color: "hsl(25, 95%, 53%)" }}>
+                    R$ {Number(b.preco).toFixed(2)}
+                  </p>
+                )}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-muted-foreground text-[10px]">Confira nossas recompensas!</p>
+          <p className="text-muted-foreground text-[10px]">Confira nossos destaques!</p>
         )}
         <p className="text-muted-foreground text-[10px] opacity-50 mt-2 text-center">
           Powered by EYWA • Experiência Gamificada Inteligente
