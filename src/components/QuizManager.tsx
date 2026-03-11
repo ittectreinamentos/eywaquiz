@@ -59,34 +59,64 @@ const QuizManager = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [existingPerguntas, setExistingPerguntas] = useState<PerguntaDB[]>([]);
+  const [lojaId, setLojaId] = useState<string | null>(null);
+
+  // Create quiz modal
+  const [showCreateQuiz, setShowCreateQuiz] = useState(false);
+  const [newQuizForm, setNewQuizForm] = useState({ titulo: "", status: "ativo" });
+  const [creatingQuiz, setCreatingQuiz] = useState(false);
 
   // Fetch quizzes for this lojista's loja
-  useEffect(() => {
+  const fetchQuizzes = async () => {
     if (!user) return;
-    const fetchQuizzes = async () => {
-      // First get loja_id
-      const { data: loja } = await supabase
-        .from("lojas")
-        .select("id")
-        .eq("profile_id", user.id)
-        .maybeSingle();
+    const { data: loja } = await supabase
+      .from("lojas")
+      .select("id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
 
-      if (!loja) {
-        setLoading(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("quizzes")
-        .select("*")
-        .eq("loja_id", loja.id)
-        .order("id");
-
-      if (data) setQuizzes(data);
+    if (!loja) {
       setLoading(false);
-    };
+      return;
+    }
+
+    setLojaId(loja.id);
+
+    const { data } = await supabase
+      .from("quizzes")
+      .select("*")
+      .eq("loja_id", loja.id)
+      .order("id");
+
+    if (data) setQuizzes(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchQuizzes();
   }, [user]);
+
+  const handleCreateQuiz = async () => {
+    if (!newQuizForm.titulo.trim() || !lojaId) {
+      toast({ title: "Preencha o título do quiz", variant: "destructive" });
+      return;
+    }
+    setCreatingQuiz(true);
+    const { error } = await supabase.from("quizzes").insert({
+      titulo: newQuizForm.titulo,
+      status: newQuizForm.status,
+      loja_id: lojaId,
+    });
+    if (error) {
+      toast({ title: "Erro ao criar quiz", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Quiz criado com sucesso!" });
+      setShowCreateQuiz(false);
+      setNewQuizForm({ titulo: "", status: "ativo" });
+      await fetchQuizzes();
+    }
+    setCreatingQuiz(false);
+  };
 
   // Fetch existing perguntas when quiz selected
   useEffect(() => {
