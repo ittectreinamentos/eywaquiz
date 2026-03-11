@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import Particles from "./Particles";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Resposta {
   id: string;
