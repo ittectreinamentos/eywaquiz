@@ -288,10 +288,15 @@ const QuizManager = () => {
 
   return (
     <div className="space-y-4">
-      {/* Quiz selector */}
+      {/* Quiz selector + create button */}
       <Card className="bg-card border-border">
         <CardContent className="p-4 space-y-3">
-          <Label className="text-foreground text-xs font-display">Selecione o Quiz</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-foreground text-xs font-display">Selecione o Quiz</Label>
+            <Button size="sm" onClick={() => setShowCreateQuiz(true)} className="text-[10px] font-display tracking-wider">
+              <Plus className="h-3 w-3 mr-1" />CRIAR QUIZ
+            </Button>
+          </div>
           {quizzes.length === 0 ? (
             <p className="text-muted-foreground text-xs">Nenhum quiz cadastrado para sua loja.</p>
           ) : (
