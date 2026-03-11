@@ -175,8 +175,10 @@ const SuperAdmin = () => {
 
     setSavingLojista(true);
 
+    // 1) Guardar sessão do admin
     const { data: { session: adminSession } } = await supabase.auth.getSession();
 
+    // 2) Criar usuário no Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: lojistaForm.email,
       password: lojistaForm.senha,
@@ -190,14 +192,7 @@ const SuperAdmin = () => {
 
     const userId = authData.user.id;
 
-    // Quando o signUp retorna sessão, garantimos contexto do novo usuário para inserts com RLS por auth.uid().
-    if (authData.session) {
-      await supabase.auth.setSession({
-        access_token: authData.session.access_token,
-        refresh_token: authData.session.refresh_token,
-      });
-    }
-
+    // 3) Inserir profile
     const { error: profileError } = await supabase.from("profiles").insert({
       id: userId,
       nome: lojistaForm.nome,
@@ -208,19 +203,26 @@ const SuperAdmin = () => {
     if (profileError) {
       console.error("Erro ao inserir profile:", profileError);
       toast({ title: "Erro ao criar perfil", description: profileError.message, variant: "destructive" });
+      setSavingLojista(false);
+      return;
     }
 
+    // 4) Inserir loja
     const { error: lojaError } = await supabase.from("lojas").insert({
       profile_id: userId,
       nome: lojistaForm.nome,
       cidade: lojistaForm.cidade,
+      status: "ativo",
     });
 
     if (lojaError) {
       console.error("Erro ao inserir loja:", lojaError);
       toast({ title: "Erro ao criar loja", description: lojaError.message, variant: "destructive" });
+      setSavingLojista(false);
+      return;
     }
 
+    // 5) Restaurar sessão do admin
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -228,14 +230,11 @@ const SuperAdmin = () => {
       });
     }
 
-    if (!profileError && !lojaError) {
-      toast({ title: "Lojista cadastrado com sucesso!" });
-      setShowAddLojista(false);
-      setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
-      fetchLojistas();
-      fetchStats();
-    }
-
+    toast({ title: "Lojista cadastrado com sucesso!" });
+    setShowAddLojista(false);
+    setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
+    await fetchLojistas();
+    await fetchStats();
     setSavingLojista(false);
   };
 
