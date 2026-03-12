@@ -9,6 +9,7 @@ interface Profile {
   cpf: string | null;
   telefone: string | null;
   role: string | null;
+  loja_id: string | null;
 }
 
 interface AuthContextType {
