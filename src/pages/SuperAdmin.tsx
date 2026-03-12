@@ -192,6 +192,14 @@ const SuperAdmin = () => {
 
     const userId = authData.user.id;
 
+    // Restaurar sessão admin ANTES dos inserts
+    if (adminSession) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+    }
+
     // 3) Inserir profile
     const { error: profileError } = await supabase.from("profiles").insert({
       id: userId,
@@ -220,14 +228,6 @@ const SuperAdmin = () => {
       toast({ title: "Erro ao criar loja", description: lojaError.message, variant: "destructive" });
       setSavingLojista(false);
       return;
-    }
-
-    // 5) Restaurar sessão do admin
-    if (adminSession) {
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
     }
 
     toast({ title: "Lojista cadastrado com sucesso!" });
