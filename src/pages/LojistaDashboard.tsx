@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import QuizManager from "@/components/QuizManager";
 import BannerManager from "@/components/BannerManager";
+import RecompensaManager from "@/components/RecompensaManager";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -132,20 +133,27 @@ const LojistaDashboard = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Route protection - only lojista can access
   useEffect(() => {
     if (!authLoading && (!profile || profile.role !== "lojista")) {
       navigate("/login", { replace: true });
     }
   }, [authLoading, profile, navigate]);
 
-  // Fetch resgates from Supabase
   const fetchResgates = async () => {
     if (!user) return;
+    // Buscar loja do lojista primeiro
+    const { data: loja } = await supabase
+      .from("lojas")
+      .select("id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+
+    if (!loja) return;
+
     const { data } = await supabase
       .from("resgates")
       .select("*, profiles:cliente_id(nome, email), recompensas:recompensa_id(titulo, pontos_necessarios)")
-      .eq("lojista_id", user.id)
+      .eq("lojista_id", loja.id)
       .order("criado_em", { ascending: false });
     if (data) setResgates(data as unknown as Resgate[]);
   };
@@ -154,23 +162,17 @@ const LojistaDashboard = () => {
     fetchResgates();
   }, [user]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel("resgates-realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "resgates", filter: `lojista_id=eq.${user.id}` },
-        () => {
-          fetchResgates();
-        }
+        { event: "*", schema: "public", table: "resgates" },
+        () => { fetchResgates(); }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const pendingCount = resgates.filter((r) => r.status === "pendente").length;
@@ -249,6 +251,9 @@ const LojistaDashboard = () => {
                   {pendingCount}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="recompensas" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Gift className="h-3 w-3 mr-1" />Recompensas
             </TabsTrigger>
             <TabsTrigger value="produtos" className="flex-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ShoppingBag className="h-3 w-3 mr-1" />Produtos
@@ -362,47 +367,43 @@ const LojistaDashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                resgates
-                  .filter((r) => r.status === "pendente")
-                  .map((r) => (
-                    <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                      <Card className="bg-card border-border mb-3 border-l-4 border-l-primary">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
-                              <p className="text-muted-foreground text-[10px]">{r.profiles?.email}</p>
-                            </div>
-                            <p className="text-muted-foreground text-[10px]">
-                              {new Date(r.criado_em).toLocaleString("pt-BR", {
-                                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                              })}
-                            </p>
+                resgates.filter((r) => r.status === "pendente").map((r) => (
+                  <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <Card className="bg-card border-border mb-3 border-l-4 border-l-primary">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
+                            <p className="text-muted-foreground text-[10px]">{r.profiles?.email}</p>
                           </div>
-                          <div className="space-y-1 mb-3">
-                            <div className="flex items-center gap-1">
-                              <span className="text-primary text-[10px]">•</span>
-                              <span className="text-foreground text-xs">{r.recompensas?.titulo}</span>
-                            </div>
+                          <p className="text-muted-foreground text-[10px]">
+                            {new Date(r.criado_em).toLocaleString("pt-BR", {
+                              day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        <div className="space-y-1 mb-3">
+                          <div className="flex items-center gap-1">
+                            <span className="text-primary text-[10px]">•</span>
+                            <span className="text-foreground text-xs">{r.recompensas?.titulo}</span>
                           </div>
-                          <p className="text-primary text-xs font-display font-bold mb-3">{r.recompensas?.pontos_necessarios} pontos</p>
-                          <div className="flex gap-2">
-                            <Button size="sm" onClick={() => handleConfirm(r.id)} disabled={processingId === r.id} className="flex-1 text-[10px] font-display tracking-wider">
-                              {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : (<><Check className="h-3 w-3 mr-1" />CONFIRMAR</>)}
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setShowRejectDialog(r.id)} disabled={processingId === r.id}
-                              className="flex-1 text-[10px] font-display tracking-wider border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
-                              <X className="h-3 w-3 mr-1" />RECUSAR
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))
+                        </div>
+                        <p className="text-primary text-xs font-display font-bold mb-3">{r.recompensas?.pontos_necessarios} pontos</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleConfirm(r.id)} disabled={processingId === r.id} className="flex-1 text-[10px] font-display tracking-wider">
+                            {processingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : (<><Check className="h-3 w-3 mr-1" />CONFIRMAR</>)}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setShowRejectDialog(r.id)} disabled={processingId === r.id}
+                            className="flex-1 text-[10px] font-display tracking-wider border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
+                            <X className="h-3 w-3 mr-1" />RECUSAR
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
               )}
             </div>
-
-            {/* History */}
             <div>
               <h2 className="text-foreground text-sm font-display font-bold mb-3">Histórico de Resgates</h2>
               {resgates.filter((r) => r.status !== "pendente").length === 0 ? (
@@ -413,30 +414,30 @@ const LojistaDashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                resgates
-                  .filter((r) => r.status !== "pendente")
-                  .map((r) => (
-                    <Card key={r.id} className={`bg-card border-border mb-2 border-l-4 ${r.status === "confirmado" ? "border-l-secondary" : "border-l-destructive"}`}>
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
-                            <p className="text-muted-foreground text-[10px]">{r.recompensas?.titulo}</p>
-                            {r.motivo_recusa && <p className="text-destructive text-[10px] mt-1">Motivo: {r.motivo_recusa}</p>}
-                          </div>
-                          <span className={`text-[10px] font-display px-2 py-0.5 rounded-full ${
-                            r.status === "confirmado" ? "bg-secondary/20 text-secondary-foreground" : "bg-destructive/20 text-destructive"
-                          }`}>
-                            {r.status === "confirmado" ? "✓ ENTREGUE" : "✕ RECUSADO"}
-                          </span>
+                resgates.filter((r) => r.status !== "pendente").map((r) => (
+                  <Card key={r.id} className={`bg-card border-border mb-2 border-l-4 ${r.status === "confirmado" ? "border-l-secondary" : "border-l-destructive"}`}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-foreground text-xs font-semibold">{r.profiles?.nome || "Cliente"}</p>
+                          <p className="text-muted-foreground text-[10px]">{r.recompensas?.titulo}</p>
+                          {r.motivo_recusa && <p className="text-destructive text-[10px] mt-1">Motivo: {r.motivo_recusa}</p>}
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                        <span className={`text-[10px] font-display px-2 py-0.5 rounded-full ${r.status === "confirmado" ? "bg-secondary/20 text-secondary-foreground" : "bg-destructive/20 text-destructive"}`}>
+                          {r.status === "confirmado" ? "✓ ENTREGUE" : "✕ RECUSADO"}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </div>
           </TabsContent>
 
+          {/* ===== RECOMPENSAS TAB ===== */}
+          <TabsContent value="recompensas" className="mt-4 pb-20">
+            <RecompensaManager />
+          </TabsContent>
 
           {/* ===== PRODUTOS TAB ===== */}
           <TabsContent value="produtos" className="mt-4 pb-20">
