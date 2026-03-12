@@ -35,7 +35,6 @@ const Index = () => {
         .maybeSingle();
 
       if (profile?.loja_id) {
-        // Step 2: get active quizzes for that loja
         const { data: quizzes } = await supabase
           .from("quizzes")
           .select("id, loja_id, titulo, status")
@@ -45,22 +44,21 @@ const Index = () => {
 
         const quiz = quizzes?.[0];
         if (quiz) {
-          setQuizId(quiz.id);
           const { data: lojaData } = await supabase
             .from("lojas")
             .select("id, nome")
             .eq("id", quiz.loja_id)
             .maybeSingle();
 
-          if (lojaData) setLoja(lojaData);
+          if (lojaData) {
+            setLoja(lojaData);
+            setQuizId(quiz.id);
+            setScreen("bakery");
+            return;
+          }
         }
       }
-      // Se tem quiz carregado, pular entry e ir direto para bakery
-      if (profile?.loja_id) {
-        setScreen("bakery");
-      } else {
-        setScreen("entry");
-      }
+      setScreen("entry");
     };
     load();
   }, [user]);
