@@ -55,7 +55,12 @@ const Index = () => {
           if (lojaData) setLoja(lojaData);
         }
       }
-      setScreen("entry");
+      // Se tem quiz carregado, pular entry e ir direto para bakery
+      if (profile?.loja_id) {
+        setScreen("bakery");
+      } else {
+        setScreen("entry");
+      }
     };
     load();
   }, [user]);
