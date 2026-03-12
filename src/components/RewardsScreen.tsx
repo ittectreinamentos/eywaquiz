@@ -16,14 +16,14 @@ interface RewardsScreenProps {
   onBack?: () => void;
 }
 
-const rewards = [
-  { name: "Café Expresso", desc: "Grão premium torrado na hora", points: 30, emoji: "☕" },
-  { name: "Pão de Queijo (6un)", desc: "Quentinho, direto do forno", points: 50, emoji: "🧀" },
-  { name: "Fatia de Bolo", desc: "Chocolate belga artesanal", points: 70, emoji: "🍰" },
-  { name: "Combo Café da Manhã", desc: "Pão + café + suco natural", points: 90, emoji: "🥐" },
-  { name: "Torta Inteira", desc: "Torta premium para a família", points: 120, emoji: "🎂" },
-  { name: "Vale Compras R$20", desc: "Use em qualquer produto", points: 150, emoji: "🎁" },
-];
+interface Recompensa {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  pontos_necessarios: number;
+  emoji?: string;
+  lojista_id: string;
+}
 
 const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
   const { toast } = useToast();
@@ -33,6 +33,9 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [validating, setValidating] = useState(false);
   const [validated, setValidated] = useState(false);
+  const [recompensas, setRecompensas] = useState<Recompensa[]>([]);
+  const [lojaId, setLojaId] = useState<string | null>(null);
+  const [lojaNome, setLojaNome] = useState<string>("Loja Parceira");
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -41,13 +44,39 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("loja_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!profile?.loja_id) return;
+      setLojaId(profile.loja_id);
+      const { data: loja } = await supabase
+        .from("lojas")
+        .select("nome")
+        .eq("id", profile.loja_id)
+        .maybeSingle();
+      if (loja) setLojaNome(loja.nome);
+      const { data } = await supabase
+        .from("recompensas")
+        .select("id, titulo, descricao, pontos_necessarios, lojista_id")
+        .eq("lojista_id", profile.loja_id)
+        .eq("ativo", true);
+      if (data) setRecompensas(data);
+    };
+    load();
+  }, [user]);
+
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
-  const currentScore = score - redeemed.reduce((acc, idx) => acc + rewards[idx].points, 0);
+  const currentScore = score - redeemed.reduce((acc, idx) => acc + (recompensas[idx]?.pontos_necessarios || 0), 0);
 
   const handleRedeem = (idx: number) => {
     if (redeemed.includes(idx)) return;
-    if (currentScore >= rewards[idx].points) {
+    if (currentScore >= recompensas[idx].pontos_necessarios) {
       setRedeemed([...redeemed, idx]);
     }
   };
@@ -57,52 +86,15 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
     setValidating(true);
 
     try {
-      // Find a lojista to associate (first one found)
-      const { data: lojistas } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("role", "lojista")
-        .limit(1);
-
-      const lojistaId = lojistas?.[0]?.id;
-
-      // First, get or create recompensas in the DB matching our local rewards
       for (const idx of redeemed) {
-        const r = rewards[idx];
-        
-        // Check if recompensa exists
-        let { data: existing } = await supabase
-          .from("recompensas")
-          .select("id")
-          .eq("titulo", r.name)
-          .eq("ativo", true)
-          .limit(1);
-
-        let recompensaId = existing?.[0]?.id;
-
-        if (!recompensaId && lojistaId) {
-          const { data: created } = await supabase
-            .from("recompensas")
-            .insert({
-              lojista_id: lojistaId,
-              titulo: r.name,
-              descricao: r.desc,
-              pontos_necessarios: r.points,
-              ativo: true,
-            })
-            .select("id")
-            .single();
-          recompensaId = created?.id;
-        }
-
-        if (recompensaId && lojistaId) {
-          await supabase.from("resgates").insert({
-            cliente_id: user.id,
-            lojista_id: lojistaId,
-            recompensa_id: recompensaId,
-            status: "pendente",
-          });
-        }
+        const r = recompensas[idx];
+        if (!r) continue;
+        await supabase.from("resgates").insert({
+          cliente_id: user.id,
+          lojista_id: r.lojista_id,
+          recompensa_id: r.id,
+          status: "pendente",
+        });
       }
 
       setValidated(true);
@@ -137,7 +129,7 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
             )}
             <div>
               <p className="text-gold font-display text-xs tracking-wider">VITRINE DE RECOMPENSAS</p>
-              <p className="text-muted-foreground text-[10px]">Padaria Pão Dourado</p>
+              <p className="text-muted-foreground text-[10px]">{lojaNome}</p>
             </div>
           </div>
           <div className="text-right">
@@ -170,11 +162,9 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
       {/* Rewards grid */}
       <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-40">
         <div className="grid grid-cols-2 gap-3 pt-2">
-          {rewards.map((r, idx) => {
-            const canRedeem = currentScore >= r.points && !redeemed.includes(idx);
+          {recompensas.map((r, idx) => {
+            const canRedeem = currentScore >= r.pontos_necessarios && !redeemed.includes(idx);
             const isRedeemed = redeemed.includes(idx);
-            const locked = currentScore < r.points && !isRedeemed;
-
             return (
               <motion.div
                 key={idx}
@@ -187,11 +177,10 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
               >
-                <span className={`text-3xl mb-2 ${locked ? "blur-[2px]" : ""}`}>{r.emoji}</span>
-                <p className="text-foreground text-xs font-semibold">{r.name}</p>
-                <p className="text-muted-foreground text-[10px] mt-0.5 mb-2">{r.desc}</p>
-                <p className="text-gold font-display text-xs font-bold mb-2">{r.points} pts</p>
-
+                <span className="text-3xl mb-2">{r.emoji || "🎁"}</span>
+                <p className="text-foreground text-xs font-semibold">{r.titulo}</p>
+                <p className="text-muted-foreground text-[10px] mt-0.5 mb-2">{r.descricao}</p>
+                <p className="text-gold font-display text-xs font-bold mb-2">{r.pontos_necessarios} pts</p>
                 {isRedeemed ? (
                   <span className="text-forest-light text-[10px] font-display">✓ RESGATADO</span>
                 ) : canRedeem ? (
@@ -203,7 +192,7 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
                     RESGATAR
                   </button>
                 ) : (
-                  <span className="text-muted-foreground text-[10px]">Faltam {r.points - currentScore} pts</span>
+                  <span className="text-muted-foreground text-[10px]">Faltam {r.pontos_necessarios - currentScore} pts</span>
                 )}
               </motion.div>
             );
@@ -243,9 +232,9 @@ const RewardsScreen = ({ score, onBack }: RewardsScreenProps) => {
               <div className="mt-3 space-y-1">
                 {redeemed.map((idx) => (
                   <div key={idx} className="flex items-center gap-2 text-foreground">
-                    <span>{rewards[idx].emoji}</span>
-                    <span className="text-xs">{rewards[idx].name}</span>
-                    <span className="text-primary text-[10px] ml-auto font-display">{rewards[idx].points} pts</span>
+                    <span>{recompensas[idx]?.emoji || "🎁"}</span>
+                    <span className="text-xs">{recompensas[idx]?.titulo}</span>
+                    <span className="text-primary text-[10px] ml-auto font-display">{recompensas[idx]?.pontos_necessarios} pts</span>
                   </div>
                 ))}
               </div>
