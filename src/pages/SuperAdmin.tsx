@@ -230,14 +230,6 @@ const SuperAdmin = () => {
       return;
     }
 
-    // 5) Restaurar sessão do admin
-    if (adminSession) {
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
-    }
-
     toast({ title: "Lojista cadastrado com sucesso!" });
     setShowAddLojista(false);
     setLojistaForm({ nome: "", cidade: "", email: "", senha: "" });
